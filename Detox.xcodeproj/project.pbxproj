@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		4CCA9E232F681BF500786BBE /* Detox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Detox.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CCA9E232F681BF500786BBE /* Detox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Detox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		4CCA9E252F681BF500786BBE /* Detox */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Detox";
+			path = Detox;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -63,10 +63,10 @@
 			fileSystemSynchronizedGroups = (
 				4CCA9E252F681BF500786BBE /* Detox */,
 			);
-			name = "Detox";
+			name = Detox;
 			packageProductDependencies = (
 			);
-			productName = "Detox";
+			productName = Detox;
 			productReference = 4CCA9E232F681BF500786BBE /* Detox.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -255,6 +255,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Detox;
+				INFOPLIST_KEY_CFBundleName = Detox;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -263,9 +265,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "app.detox";
-				INFOPLIST_KEY_CFBundleDisplayName = Detox;
-				INFOPLIST_KEY_CFBundleName = Detox;
+				PRODUCT_BUNDLE_IDENTIFIER = app.detox;
 				PRODUCT_NAME = Detox;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -289,6 +289,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Detox;
+				INFOPLIST_KEY_CFBundleName = Detox;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -297,9 +299,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "app.detox";
-				INFOPLIST_KEY_CFBundleDisplayName = Detox;
-				INFOPLIST_KEY_CFBundleName = Detox;
+				PRODUCT_BUNDLE_IDENTIFIER = app.detox;
 				PRODUCT_NAME = Detox;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
