@@ -1,6 +1,8 @@
 # Detox
 
-![Detox Hero](assets/Detox-App-Icon.png)
+<p align="center">
+  <img src="./assets/Detox-App-Icon.png" alt="Detox Hero" width="200" />
+</p>
 
 A fast, modern macOS app for scanning, analyzing, and cleaning storage — built for developers and power users.
 
@@ -143,10 +145,10 @@ View  ──────────────────────►  Sto
   (JSON on disk)
 ```
 
-- **`StorageManager`** is the single source of truth. All `@Published` state lives here; Views bind to it directly.
-- **`StorageScanner`** is an actor. `StorageManager.scan()` calls it from the main actor; the actor runs all work off-thread.
-- **`FileIndex`** is built once per scan (one parallel FTS traversal). Categories that use `deepFiles` or `deepLargeFiles` filter the index in memory instead of re-traversing disk — dramatically faster for repeated scans.
-- **`ResultsCache`** persists the full `[String: [StorageItem]]` dictionary to a JSON file. On relaunch, if the cache is within the TTL, results load in milliseconds.
+- `**StorageManager**` is the single source of truth. All `@Published` state lives here; Views bind to it directly.
+- `**StorageScanner**` is an actor. `StorageManager.scan()` calls it from the main actor; the actor runs all work off-thread.
+- `**FileIndex**` is built once per scan (one parallel FTS traversal). Categories that use `deepFiles` or `deepLargeFiles` filter the index in memory instead of re-traversing disk — dramatically faster for repeated scans.
+- `**ResultsCache**` persists the full `[String: [StorageItem]]` dictionary to a JSON file. On relaunch, if the cache is within the TTL, results load in milliseconds.
 
 ---
 
@@ -267,7 +269,7 @@ Accessible via **⌘ ,** or the gear button in the toolbar.
 - **Background file I/O** — deletions run on a detached task; the main actor is suspended (not blocked) so the UI stays at 60 fps
 - **Live deletion HUD** — a floating progress card shows current file, count, and a progress bar; the list updates row-by-row as each file is removed
 - **Ignored patterns are scoped** — ignored folder names (e.g. `node_modules`) skip entries in `deepFiles`/`deepLargeFiles` scans; they do **not** affect the dedicated Node Modules category scanner which specifically targets those folders
-- **`.d.ts` filtering** — TypeScript declaration files are explicitly excluded from the Videos and other extension-matched scans
+- `**.d.ts` filtering\*\* — TypeScript declaration files are explicitly excluded from the Videos and other extension-matched scans
 - **Thumbnail caching** — `NSCache` backs per-path thumbnail generation; cache is cleared when the app is in the background
 - **Auto-scan** — uses `NSBackgroundActivityScheduler`; fires a notification if disk usage exceeds the configured threshold
 
