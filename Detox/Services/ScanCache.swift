@@ -32,8 +32,9 @@ actor ScanCache {
 
     init() {
         let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first!
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+                  .appendingPathComponent("Library/Application Support", isDirectory: true)
         let dir = appSupport.appendingPathComponent("Detox", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         cacheFileURL = dir.appendingPathComponent("scan-cache.json")
@@ -42,7 +43,9 @@ actor ScanCache {
         if let data = try? Data(contentsOf: dir.appendingPathComponent("scan-cache.json")),
            let decoded = try? JSONDecoder().decode([String: ScanCacheEntry].self, from: data) {
             entries = decoded
+            #if DEBUG
             print("📦 ScanCache: loaded \(decoded.count) entries from disk")
+            #endif
         }
     }
 
@@ -100,7 +103,9 @@ actor ScanCache {
         let before = entries.count
         entries.removeAll()
         save()
+        #if DEBUG
         print("🗑️ ScanCache: cleared \(before) entr\(before == 1 ? "y" : "ies") from disk")
+        #endif
     }
 
     /// Removes cache entries for specific paths only. More efficient than invalidateAll()
@@ -117,7 +122,9 @@ actor ScanCache {
             let data = try JSONEncoder().encode(entries)
             try data.write(to: cacheFileURL, options: .atomic)
         } catch {
+            #if DEBUG
             print("⚠️ ScanCache: failed to save — \(error)")
+            #endif
         }
     }
 

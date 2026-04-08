@@ -86,6 +86,7 @@ struct SidebarView: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.vertical, 2)
+                    .accessibilityLabel("Add custom scanner")
                 } else {
                     ForEach(storageManager.customCategories) { category in
                         CustomCategoryRow(category: category, storageManager: storageManager)
@@ -201,6 +202,9 @@ struct CustomCategoryRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(category.name)\(sizeText.isEmpty ? "" : ", \(sizeText)")")
+        .accessibilityAddTraits(.isButton)
         .listRowBackground(
             Group {
                 if isSelected {
@@ -262,6 +266,9 @@ struct ToolRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(tool.title)
+        .accessibilityAddTraits(.isButton)
         .listRowBackground(
             Group {
                 if isSelected {
@@ -360,6 +367,9 @@ struct CategoryRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(category.title)\(sizeText.isEmpty ? "" : ", \(sizeText)")")
+        .accessibilityAddTraits(.isButton)
         .listRowBackground(
             Group {
                 if isSelected {

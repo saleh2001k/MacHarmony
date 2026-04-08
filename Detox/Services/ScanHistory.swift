@@ -40,7 +40,9 @@ actor ScanHistoryService {
 
     init() {
         let appSupport = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+                  .appendingPathComponent("Library/Application Support", isDirectory: true)
         let dir = appSupport.appendingPathComponent("Detox", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         storageURL = dir.appendingPathComponent("scan_history.json")

@@ -211,6 +211,17 @@ private struct CategoryScanChip: View {
 
     @State private var appeared = false
 
+    private var accessibilityChipLabel: String {
+        if accessDenied { return "\(category.title): permission needed" }
+        if isDone {
+            if itemCount > 0 {
+                return "\(category.title): \(itemCount) item\(itemCount == 1 ? "" : "s"), \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))"
+            }
+            return "\(category.title): nothing found"
+        }
+        return "\(category.title): \(isScanning ? "scanning" : "waiting")"
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             ZStack {
@@ -244,9 +255,17 @@ private struct CategoryScanChip: View {
                             Text("Permission needed")
                                 .foregroundStyle(Color.orange)
                         } else {
-                            Text(itemCount == 0
-                                 ? "Nothing found"
-                                 : "\(itemCount) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
+                            let statusText: String = {
+                                if itemCount > 0 {
+                                    return "\(itemCount) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))"
+                                }
+                                if category == .trash {
+                                    return "Checking access…"
+                                }
+                                return "Nothing found"
+                            }()
+
+                            Text(statusText)
                                 .foregroundStyle(itemCount == 0 ? Color.secondary : category.color)
                         }
                     } else {
@@ -273,6 +292,8 @@ private struct CategoryScanChip: View {
                 )
                 .animation(.easeInOut(duration: 0.3), value: isDone)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityChipLabel)
         .scaleEffect(appeared ? 1 : 0.88)
         .opacity(appeared ? 1 : 0)
         .onAppear {

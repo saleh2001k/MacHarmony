@@ -13,6 +13,7 @@ import Darwin
 
 extension Notification.Name {
     static let showHelp = Notification.Name("com.Detox.showHelp")
+    static let startFullScan = Notification.Name("com.Detox.startFullScan")
 }
 
 // MARK: - DeletionMode
@@ -62,6 +63,11 @@ class StorageManager: ObservableObject {
         let stored = UserDefaults.standard.stringArray(forKey: "hiddenCategories") ?? []
         return Set(stored)
     }()
+    @Published var menuBarCategories: Set<String> = {
+        let stored = UserDefaults.standard.stringArray(forKey: "menuBarCategories")
+        if let stored, !stored.isEmpty { return Set(stored) }
+        return Set(["xcodeDerivedData", "nodeModules"])
+    }()
     @Published var categoryOrder: [String] = {
         let stored = UserDefaults.standard.stringArray(forKey: "categoryOrder") ?? []
         return stored
@@ -86,6 +92,8 @@ class StorageManager: ObservableObject {
 
     // MARK: - Tool: Large File Browser
     @Published var largeFileGroups: [LargeFileGroup] = []
+    @Published var isFullScanRunning = false
+    @Published var isMenuBarScanRunning = false
     @Published var isLargeFileScanRunning = false
 
     // MARK: - Tool: Old & Unused Files
@@ -160,11 +168,13 @@ class StorageManager: ObservableObject {
     func scan() async {
         let scanStart = Date()
         let scanID = Int.random(in: 1000...9999)
+        #if DEBUG
         print("")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("🔍 [\(scanID)] FULL SCAN STARTED at \(Self.timestamp())")
         print("   rootPath : \(rootPath)")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        #endif
 
         await Task.yield()
 
@@ -175,14 +185,20 @@ class StorageManager: ObservableObject {
         scanningCategories = Set(orderedCategories)
 
         // Invalidate all caches so every re-scan is fully fresh — no stale sizes, no leftover results.
+        #if DEBUG
         print("🗑️ [\(scanID)] Invalidating ScanCache + ResultsCache…")
+        #endif
         await scanner.invalidateCache()
         await resultsCache.invalidate()
+        #if DEBUG
         print("✅ [\(scanID)] Caches cleared — every size will be recalculated from disk")
+        #endif
 
         // Configure scanner with current user preferences
         let minBytes = Int64(UserDefaults.standard.double(forKey: "minScanFileSizeBytes"))
+        #if DEBUG
         print("⚙️ [\(scanID)] Scanner config — minBytes:\(minBytes)  ignoredPatterns:\(ignoredPatterns.count)  excludedPaths:\(excludedScanPaths.count)")
+        #endif
         await scanner.configure(
             ignoredNames: ignoredPatterns,
             excludedPaths: excludedScanPaths,
@@ -191,7 +207,9 @@ class StorageManager: ObservableObject {
 
         // Phase 1 — build shared file index (one parallel traversal)
         let indexStart = Date()
+        #if DEBUG
         print("📇 [\(scanID)] Building FileIndex from \(rootPath)…")
+        #endif
         isIndexBuilding = true
         indexedFileCount = 0
         let fileIndex = await scanner.buildIndex(rootPath: rootPath) { [weak self] count, path in
@@ -204,59 +222,21 @@ class StorageManager: ObservableObject {
         isIndexBuilding = false
         scanProgress = 0.05
         lastFileIndex = fileIndex
+        #if DEBUG
         print("📇 [\(scanID)] FileIndex ready — \(indexedFileCount) files in \(Self.elapsed(since: indexStart))")
+        #endif
 
         let categories = orderedCategories
-        let categoryCount = Double(categories.count)
-        var completedCategories = 0
-
+        #if DEBUG
         print("🚀 [\(scanID)] Scanning \(categories.count) categories in parallel…")
+        #endif
         let categoriesStart = Date()
 
-        await withTaskGroup(of: (StorageCategory, [StorageItem]).self) { group in
-            for (index, category) in categories.enumerated() {
-                let categoryBase = Double(index) / categoryCount
-                let categorySlice = 1.0 / categoryCount
+        await performCategoryScan(categories, fileIndex: fileIndex, scanID: scanID)
 
-                group.addTask {
-                    nonisolated(unsafe) var filesScanned = 0
-                    let catStart = Date()
-                    let items = await self.scanner.scanCategory(
-                        category,
-                        rootPath: self.rootPath,
-                        index: fileIndex,
-                        onFileScanned: { path in
-                            filesScanned += 1
-                            guard filesScanned % 25 == 0 else { return }
-                            let n = filesScanned
-                            let p = path
-                            Task { @MainActor [weak self] in
-                                guard let self else { return }
-                                let intra = 1.0 - exp(-Double(n) / 300.0)
-                                let proposed = categoryBase + categorySlice * intra
-                                if proposed > self.scanProgress {
-                                    self.scanProgress = proposed
-                                }
-                                self.currentScanPath = p
-                            }
-                        }
-                    )
-                    let totalSize = items.reduce(0) { $0 + $1.size }
-                    print("   📦 [\(scanID)] \(category.title): \(items.count) items  \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))  (\(Self.elapsed(since: catStart)))")
-                    return (category, items)
-                }
-            }
-
-            for await (category, items) in group {
-                storageItems[category] = items
-                scanningCategories.remove(category)
-                completedCategories += 1
-                scanProgress = 0.05 + 0.95 * Double(completedCategories) / categoryCount
-            }
-        }
-        scanningCategories = []
-
+        #if DEBUG
         print("⏱️ [\(scanID)] All \(categories.count) categories done in \(Self.elapsed(since: categoriesStart))")
+        #endif
 
         // Scan custom categories in parallel (second group, after built-in scan)
         if !customCategories.isEmpty {
@@ -275,7 +255,9 @@ class StorageManager: ObservableObject {
                 for await (id, items) in group {
                     customItems[id] = items
                     let name = customCats.first(where: { $0.id == id })?.name ?? id.uuidString
+                    #if DEBUG
                     print("📦 Custom '\(name)': \(items.count) items")
+                    #endif
                 }
             }
         }
@@ -290,11 +272,12 @@ class StorageManager: ObservableObject {
 
         // Sync trashSize from the scanned trash items so the stat card stays accurate.
         // If the trash folder is readable but empty, items will be [] — that's fine.
-        // If FDA was denied, items will also be [] but the folder exists; we detect
-        // the denial by probing the trash path directly.
+        // If FDA was denied, the scanner sets trashScanWasDenied; use that directly
+        // instead of re-probing (re-probing gives a false-negative when the pre-flight
+        // check passes but the actual directory enumeration fails).
         let trashItems = storageItems[.trash] ?? []
         trashSize = trashItems.reduce(0) { $0 + $1.size }
-        trashAccessDenied = trashItems.isEmpty && trashHasItemsButAccessDenied()
+        trashAccessDenied = await scanner.trashScanWasDenied
 
         lastScanDate = Date()
 
@@ -326,6 +309,7 @@ class StorageManager: ObservableObject {
         let stats = await scanner.cacheStats()
         let totalItems = storageItems.values.flatMap { $0 }.count
         let totalBytes = storageItems.values.flatMap { $0 }.reduce(0) { $0 + $1.size }
+        #if DEBUG
         print("")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("✨ [\(scanID)] SCAN COMPLETE in \(Self.elapsed(since: scanStart))")
@@ -339,9 +323,120 @@ class StorageManager: ObservableObject {
         }
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("")
+        #endif
 
         // Record this scan in history
         await recordScanSession()
+    }
+
+    // MARK: - Shared Category Scan Helper
+
+    private func performCategoryScan(
+        _ categories: [StorageCategory],
+        fileIndex: FileIndex,
+        scanID: Int
+    ) async {
+        let categoryCount = Double(categories.count)
+        var completedCategories = 0
+
+        await withTaskGroup(of: (StorageCategory, [StorageItem]).self) { group in
+            for (index, category) in categories.enumerated() {
+                let categoryBase = Double(index) / categoryCount
+                let categorySlice = 1.0 / categoryCount
+
+                group.addTask {
+                    nonisolated(unsafe) var filesScanned = 0
+                    let catStart = Date()
+                    let items = await self.scanner.scanCategory(
+                        category,
+                        rootPath: self.rootPath,
+                        index: fileIndex,
+                        onFileScanned: { path in
+                            filesScanned += 1
+                            guard filesScanned % 25 == 0 else { return }
+                            let n = filesScanned
+                            let p = path
+                            Task { @MainActor [weak self] in
+                                guard let self else { return }
+                                let intra = 1.0 - exp(-Double(n) / 300.0)
+                                let proposed = categoryBase + categorySlice * intra
+                                if proposed > self.scanProgress {
+                                    self.scanProgress = proposed
+                                }
+                                self.currentScanPath = p
+                            }
+                        }
+                    )
+                    let totalSize = items.reduce(0) { $0 + $1.size }
+                    #if DEBUG
+                    print("   📦 [\(scanID)] \(category.title): \(items.count) items  \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))  (\(Self.elapsed(since: catStart)))")
+                    #endif
+                    return (category, items)
+                }
+            }
+
+            for await (category, items) in group {
+                storageItems[category] = items
+                scanningCategories.remove(category)
+                completedCategories += 1
+                scanProgress = 0.05 + 0.95 * Double(completedCategories) / categoryCount
+            }
+        }
+        scanningCategories = []
+    }
+
+    // MARK: - Menu Bar Partial Scan
+
+    func scanMenuBarCategories() async {
+        let categoriesToScan = menuBarVisibleCategories
+        guard !categoriesToScan.isEmpty else { return }
+        isMenuBarScanRunning = true
+        defer { isMenuBarScanRunning = false }
+
+        let scanID = Int.random(in: 1000...9999)
+        #if DEBUG
+        print("🔍 [\(scanID)] MENU BAR SCAN: \(categoriesToScan.map(\.title).joined(separator: ", "))")
+        #endif
+
+        await Task.yield()
+
+        for cat in categoriesToScan { storageItems[cat] = nil }
+        scanProgress = 0
+        currentScanPath = ""
+        scanningCategories = Set(categoriesToScan)
+
+        let minBytes = Int64(UserDefaults.standard.double(forKey: "minScanFileSizeBytes"))
+        await scanner.configure(
+            ignoredNames: ignoredPatterns,
+            excludedPaths: excludedScanPaths,
+            globalMinBytes: minBytes
+        )
+
+        isIndexBuilding = true
+        indexedFileCount = 0
+        let fileIndex = await scanner.buildIndex(rootPath: rootPath) { [weak self] count, path in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.indexedFileCount = count
+                if !path.isEmpty { self.currentScanPath = path }
+            }
+        }
+        isIndexBuilding = false
+        scanProgress = 0.05
+        lastFileIndex = fileIndex
+
+        await performCategoryScan(categoriesToScan, fileIndex: fileIndex, scanID: scanID)
+
+        for _ in 0..<4 { await Task.yield() }
+        currentScanPath = ""
+        updateTotalSize()
+        updateDiskUsage()
+        lastScanDate = Date()
+        hasResults = !storageItems.isEmpty
+
+        #if DEBUG
+        print("✅ [\(scanID)] Menu bar scan complete.")
+        #endif
     }
 
     // MARK: - Log helpers
@@ -446,6 +541,10 @@ class StorageManager: ObservableObject {
         orderedCategories.filter { !hiddenCategories.contains($0.rawValue) }
     }
 
+    var menuBarVisibleCategories: [StorageCategory] {
+        orderedCategories.filter { menuBarCategories.contains($0.rawValue) }
+    }
+
     var orderedCategories: [StorageCategory] {
         let stored = categoryOrder.compactMap { StorageCategory(rawValue: $0) }
         let missing = StorageCategory.allCases.filter { cat in
@@ -524,7 +623,12 @@ class StorageManager: ObservableObject {
         ud.set(false,       forKey: "exportIncludeHidden")
         ud.set("",          forKey: "exportDestination")
 
+        menuBarCategories = Set(["xcodeDerivedData", "nodeModules"])
+        ud.set(["xcodeDerivedData", "nodeModules"], forKey: "menuBarCategories")
+
+        #if DEBUG
         print("🔄 All preferences reset to defaults.")
+        #endif
     }
 
     func toggleCategoryVisibility(_ category: StorageCategory) {
@@ -538,6 +642,19 @@ class StorageManager: ObservableObject {
 
     func isCategoryHidden(_ category: StorageCategory) -> Bool {
         hiddenCategories.contains(category.rawValue)
+    }
+
+    func isInMenuBar(_ category: StorageCategory) -> Bool {
+        menuBarCategories.contains(category.rawValue)
+    }
+
+    func toggleMenuBarCategory(_ category: StorageCategory) {
+        if menuBarCategories.contains(category.rawValue) {
+            menuBarCategories.remove(category.rawValue)
+        } else {
+            menuBarCategories.insert(category.rawValue)
+        }
+        UserDefaults.standard.set(Array(menuBarCategories), forKey: "menuBarCategories")
     }
 
     // MARK: - Single Custom Category Scan
@@ -637,7 +754,9 @@ class StorageManager: ObservableObject {
                     }
                     return true
                 } catch {
+                    #if DEBUG
                     print("⚠️ Delete failed: \(path) — \(error)")
+                    #endif
                     return false
                 }
             }.value
@@ -646,7 +765,9 @@ class StorageManager: ObservableObject {
                 deleted.append(item.path)
                 totalBytesFreed += item.size
                 onItemDeleted?(item)
+                #if DEBUG
                 print("🗑️ Deleted: \(item.path)")
+                #endif
             } else {
                 failed.append(item.name)
             }
@@ -775,21 +896,6 @@ class StorageManager: ObservableObject {
         guard let firstField = output.split(whereSeparator: \.isWhitespace).first,
               let kiloBytes = Int64(firstField) else { return 0 }
         return kiloBytes * 1024
-    }
-
-    // MARK: - Trash Access Detection
-
-    /// Returns true when ~/.Trash exists but contentsOfDirectory throws — meaning FDA is missing.
-    private func trashHasItemsButAccessDenied() -> Bool {
-        let fm = FileManager.default
-        let trashURL = fm.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
-        guard fm.fileExists(atPath: trashURL.path) else { return false }
-        do {
-            _ = try fm.contentsOfDirectory(atPath: trashURL.path)
-            return false   // access succeeded
-        } catch {
-            return true    // permission error → FDA required
-        }
     }
 
     /// Opens the Full Disk Access pane in System Settings so the user can grant it.
@@ -1229,7 +1335,9 @@ class StorageManager: ObservableObject {
             }
             completion(.finished)
         }
+        #if DEBUG
         print("⏰ Auto-scan scheduled every \(Int(interval/3600))h")
+        #endif
     }
 
     private func sendStorageNotificationIfNeeded() {
@@ -1242,6 +1350,62 @@ class StorageManager: ObservableObject {
         content.body = "Your Mac is \(Int(usedPercentage * 100))% full. Detox found \(totalCleanableSize) to clean."
         content.sound = .default
         let request = UNNotificationRequest(identifier: "storage-warning", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Derived Data Auto-Clean
+
+    func scheduleDerivedDataAutocleanIfNeeded() {
+        guard UserDefaults.standard.bool(forKey: "derivedDataAutocleanEnabled") else { return }
+        let storedInterval = UserDefaults.standard.double(forKey: "derivedDataAutocleanInterval")
+        let interval = storedInterval > 0 ? storedInterval : 604800
+
+        let activity = NSBackgroundActivityScheduler(identifier: "com.Detox.derivedDataAutoclean")
+        activity.repeats = true
+        activity.interval = interval
+        activity.tolerance = interval * 0.1
+        activity.qualityOfService = .background
+        activity.schedule { [weak self] completion in
+            Task { @MainActor [weak self] in
+                guard let self else { completion(.finished); return }
+                #if DEBUG
+                print("🧹 Auto-clean: scanning Derived Data…")
+                #endif
+                await self.scanner.configure(
+                    ignoredNames: self.ignoredPatterns,
+                    excludedPaths: self.excludedScanPaths,
+                    globalMinBytes: Int64(UserDefaults.standard.double(forKey: "minScanFileSizeBytes"))
+                )
+                let fileIndex = await self.scanner.buildIndex(rootPath: self.rootPath) { _, _ in }
+                let items = await self.scanner.scanCategory(.xcodeDerivedData, rootPath: self.rootPath, index: fileIndex)
+                if !items.isEmpty {
+                    #if DEBUG
+                    print("🧹 Auto-clean: deleting \(items.count) Derived Data items…")
+                    #endif
+                    self.storageItems[.xcodeDerivedData] = items
+                    await self.deleteItems(items, from: .xcodeDerivedData, mode: .permanent)
+                    let bytesDeleted = items.reduce(0) { $0 + $1.size }
+                    self.sendDerivedDataAutocleanNotification(bytesDeleted: bytesDeleted)
+                }
+            }
+            completion(.finished)
+        }
+        #if DEBUG
+        print("⏰ Derived Data auto-clean scheduled every \(Int(interval / 86400))d")
+        #endif
+    }
+
+    private func sendDerivedDataAutocleanNotification(bytesDeleted: Int64) {
+        guard UserDefaults.standard.bool(forKey: "notificationsEnabled") else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Derived Data Cleaned"
+        content.body = "Detox automatically deleted \(ByteCountFormatter.string(fromByteCount: bytesDeleted, countStyle: .file)) of Derived Data."
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "derived-data-autoclean-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
         UNUserNotificationCenter.current().add(request)
     }
 }

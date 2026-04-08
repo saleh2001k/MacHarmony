@@ -4,14 +4,17 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 struct ContentView: View {
     @EnvironmentObject var storageManager: StorageManager
     @State private var fileAccessService = FileAccessService()
-    @State private var isScanning = false
     @State private var showPermissionAlert = false
     @State private var showHelp = false
     @State private var hasLaunched = false
+    @AppStorage("hasShownOnboarding") private var hasShownOnboarding = false
+
+    private var isScanning: Bool { storageManager.isFullScanRunning || storageManager.isMenuBarScanRunning }
 
     var body: some View {
         Group {
@@ -46,15 +49,17 @@ struct ContentView: View {
                         } label: {
                             Label("Home", systemImage: "house.fill")
                         }
+                        .accessibilityLabel("Go to Home")
                     }
                 }
-                ScanButton(isScanning: $isScanning, storageManager: storageManager)
+                ScanButton(storageManager: storageManager)
                 if !isScanning && storageManager.hasResults {
                     Button {
                         ReportExporter.export(storageManager: storageManager)
                     } label: {
                         Label("Export", systemImage: "square.and.arrow.up")
                     }
+                    .accessibilityLabel("Export report")
                 }
                 if !isScanning {
                     PermissionsButton(showPermissionAlert: $showPermissionAlert)
@@ -63,14 +68,17 @@ struct ContentView: View {
                     } label: {
                         Label("Help", systemImage: "questionmark.circle")
                     }
+                    .accessibilityLabel("Help")
                     if #available(macOS 14.0, *) {
                         SettingsLink {
                             Label("Settings", systemImage: "gearshape")
                         }
+                        .accessibilityLabel("Settings")
                     } else {
                         Button { NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) } label: {
                             Label("Settings", systemImage: "gearshape")
                         }
+                        .accessibilityLabel("Settings")
                     }
                 }
             }
@@ -81,6 +89,7 @@ struct ContentView: View {
             withAnimation(.easeOut(duration: 0.28).delay(0.04)) {
                 hasLaunched = true
             }
+            guard hasShownOnboarding else { return }
             await performInitialSetup()
         }
         .alert("File Access Required", isPresented: $showPermissionAlert) {
@@ -94,8 +103,22 @@ struct ContentView: View {
         .sheet(isPresented: $showHelp) {
             HelpView()
         }
+        .sheet(isPresented: .init(get: { !hasShownOnboarding }, set: { _ in })) {
+            OnboardingView { requestNotifications in
+                hasShownOnboarding = true
+                if requestNotifications {
+                    UNUserNotificationCenter.current()
+                        .requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+                }
+                Task { await performInitialSetup() }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .showHelp)) { _ in
             showHelp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .startFullScan)) { _ in
+            guard !storageManager.isFullScanRunning else { return }
+            Task { await runFullScan() }
         }
     }
 
@@ -109,13 +132,17 @@ struct ContentView: View {
         // Try loading from cache first — skip scan if results are fresh
         let loaded = await storageManager.loadCachedResultsIfFresh()
         if !loaded {
-            isScanning = true
-            await storageManager.scan()
-            isScanning = false
+            await runFullScan()
         }
 
         // Refresh trash size now that file access is granted
         await storageManager.refreshTrashSize()
+    }
+
+    private func runFullScan() async {
+        storageManager.isFullScanRunning = true
+        await storageManager.scan()
+        storageManager.isFullScanRunning = false
     }
 }
 
@@ -316,20 +343,21 @@ struct EmptyCategorySelectionView: View {
 // MARK: - Scan Button
 
 struct ScanButton: View {
-    @Binding var isScanning: Bool
     @ObservedObject var storageManager: StorageManager
 
     var body: some View {
         Button {
             Task {
-                isScanning = true
+                storageManager.isFullScanRunning = true
                 await storageManager.scan()
-                isScanning = false
+                storageManager.isFullScanRunning = false
             }
         } label: {
             Label("Scan", systemImage: "arrow.clockwise")
         }
-        .disabled(isScanning)
+        .disabled(storageManager.isFullScanRunning)
+        .accessibilityLabel("Scan storage")
+        .accessibilityHint("Analyzes your Mac for cleanable files")
     }
 }
 
@@ -344,6 +372,8 @@ struct PermissionsButton: View {
         } label: {
             Label("Permissions", systemImage: "lock.shield")
         }
+        .accessibilityLabel("Permissions")
+        .accessibilityHint("Opens Full Disk Access settings")
     }
 }
 

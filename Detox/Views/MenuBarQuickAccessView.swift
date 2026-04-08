@@ -8,43 +8,35 @@ import AppKit
 
 struct MenuBarQuickAccessView: View {
     @EnvironmentObject var storageManager: StorageManager
-    @State private var isScanning = false
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
 
-                // ── Disk Usage Header ─────────────────────────────────────
-                MenuBarDiskHeader(storageManager: storageManager)
-                    .padding(.bottom, 10)
+            // ── Disk Usage Header ─────────────────────────────────────
+            MenuBarDiskHeader(storageManager: storageManager)
+                .padding(.bottom, 10)
 
-                MenuDivider()
+            MenuDivider()
 
-                // ── Quick Stats Row ───────────────────────────────────────
-                MenuBarStatsRow(storageManager: storageManager)
+            if storageManager.isMenuBarScanRunning {
+                // ── Scan Progress ─────────────────────────────────────
+                MenuBarScanProgress(storageManager: storageManager)
                     .padding(.vertical, 10)
-
-                MenuDivider()
-
-                // ── Top Categories ────────────────────────────────────────
+            } else {
+                // ── Menu Bar Categories ───────────────────────────────
                 MenuBarTopCategories(storageManager: storageManager)
                     .padding(.vertical, 10)
-
-                MenuDivider()
-
-                // ── Show / Hide Categories ────────────────────────────────
-                MenuBarCategoryToggles(storageManager: storageManager)
-                    .padding(.vertical, 10)
-
-                MenuDivider()
-
-                // ── Actions ───────────────────────────────────────────────
-                MenuBarActions(isScanning: $isScanning, storageManager: storageManager)
-                    .padding(.top, 10)
             }
-            .padding(14)
+
+            MenuDivider()
+
+            // ── Actions ───────────────────────────────────────────────
+            MenuBarActions(storageManager: storageManager)
+                .padding(.top, 10)
         }
-        .frame(width: 320, height: min(620, NSScreen.main.map { $0.visibleFrame.height * 0.8 } ?? 580))
+        .padding(14)
+        .frame(width: 300)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -108,23 +100,6 @@ private struct MenuBarStatsRow: View {
     var body: some View {
         VStack(spacing: 6) {
             HStack(spacing: 8) {
-                MenuStatChip(
-                    icon: "sparkles",
-                    value: storageManager.totalCleanableSize,
-                    label: "Cleanable",
-                    color: Theme.accentGreen
-                )
-
-                let totalItems = storageManager.storageItems.values.reduce(0) { $0 + $1.count }
-                    + storageManager.customItems.values.reduce(0) { $0 + $1.count }
-                MenuStatChip(
-                    icon: "doc.on.doc.fill",
-                    value: "\(totalItems)",
-                    label: "Items",
-                    color: .purple
-                )
-            }
-            HStack(spacing: 8) {
                 if storageManager.trashSize > 0 {
                     MenuStatChip(
                         icon: "trash.fill",
@@ -170,45 +145,100 @@ private struct MenuStatChip: View {
     }
 }
 
+// MARK: - Scan Progress
+
+private struct MenuBarScanProgress: View {
+    @ObservedObject var storageManager: StorageManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                IndeterminateSpinner(size: 13, color: Theme.accentGreen)
+                Text(storageManager.isIndexBuilding ? "Building index…" : "Scanning…")
+                    .font(.caption).fontWeight(.semibold)
+                Spacer()
+                Text("\(Int(storageManager.scanProgress * 100))%")
+                    .font(.caption).fontWeight(.semibold).monospacedDigit()
+                    .foregroundStyle(Theme.accentGreen)
+                    .contentTransition(.numericText())
+                    .animation(.linear(duration: 0.15), value: storageManager.scanProgress)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.secondary.opacity(0.15))
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(LinearGradient(
+                            colors: [Theme.accentGreen.opacity(0.7), Theme.accentGreen],
+                            startPoint: .leading, endPoint: .trailing
+                        ))
+                        .frame(width: max(6, geo.size.width * storageManager.scanProgress))
+                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: storageManager.scanProgress)
+                }
+            }
+            .frame(height: 5)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+
+            if !storageManager.currentScanPath.isEmpty {
+                Text((storageManager.currentScanPath as NSString).lastPathComponent)
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+        }
+    }
+}
+
 // MARK: - Top Categories
+
+private let xcodeExpandableCategories: Set<StorageCategory> = [
+    .xcodeDerivedData, .xcodeArchives, .xcodeDeviceSupport
+]
 
 private struct MenuBarTopCategories: View {
     @ObservedObject var storageManager: StorageManager
 
     private var topCategories: [(StorageCategory, Int64)] {
-        storageManager.visibleCategories
+        storageManager.menuBarVisibleCategories
             .compactMap { category -> (StorageCategory, Int64)? in
                 let size = storageManager.storageItems[category]?.reduce(0) { $0 + $1.size } ?? 0
-                return size > 0 ? (category, size) : nil
+                return (category, size)
             }
             .sorted { $0.1 > $1.1 }
-            .prefix(4)
-            .map { $0 }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("Top Categories", systemImage: "chart.bar.fill")
+            Label("Menu Categories", systemImage: "chart.bar.fill")
                 .font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
 
-            if topCategories.isEmpty {
-                Text("No scan data yet")
+            if storageManager.menuBarVisibleCategories.isEmpty {
+                Text("No categories selected — tap Customize Menu")
                     .font(.caption).foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 4)
             } else {
                 ForEach(topCategories, id: \.0) { category, size in
-                    HStack(spacing: 8) {
-                        Image(systemName: category.icon)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(category.color)
-                            .themeIconBadge(color: category.color, size: 22)
-                        Text(category.title)
-                            .font(.subheadline)
-                        Spacer()
-                        Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-                            .font(.caption).fontWeight(.medium)
-                            .foregroundStyle(.secondary).monospacedDigit()
+                    if xcodeExpandableCategories.contains(category) {
+                        MenuBarXcodeSection(storageManager: storageManager, category: category)
+                    } else {
+                        HStack(spacing: 8) {
+                            Image(systemName: category.icon)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(category.color)
+                                .themeIconBadge(color: category.color, size: 22)
+                            Text(category.title)
+                                .font(.subheadline)
+                            Spacer()
+                            if size > 0 {
+                                Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                                    .font(.caption).fontWeight(.medium)
+                                    .foregroundStyle(.secondary).monospacedDigit()
+                            } else {
+                                Text("Not scanned")
+                                    .font(.caption).foregroundStyle(.tertiary)
+                            }
+                        }
                     }
                 }
             }
@@ -216,58 +246,157 @@ private struct MenuBarTopCategories: View {
     }
 }
 
-// MARK: - Category Toggles
+// MARK: - Xcode Expandable Section
 
-private struct MenuBarCategoryToggles: View {
+private struct MenuBarXcodeSection: View {
     @ObservedObject var storageManager: StorageManager
-    @State private var expanded = false
+    let category: StorageCategory
+
+    @State private var isExpanded = true
+    @State private var selectedIDs: Set<UUID> = []
+    @State private var isDeleting = false
+
+    private var items: [StorageItem] {
+        (storageManager.storageItems[category] ?? []).sorted { $0.size > $1.size }
+    }
+
+    private var totalSize: Int64 { items.reduce(0) { $0 + $1.size } }
+
+    private var selectedItems: [StorageItem] { items.filter { selectedIDs.contains($0.id) } }
+
+    /// For DerivedData, strip the trailing `-xxxxxxxx` build hash from folder names.
+    private func displayName(for item: StorageItem) -> String {
+        guard category == .xcodeDerivedData else { return item.name }
+        // Format: "ProjectName-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" — strip the last hyphen+hex segment
+        let name = item.name
+        if let range = name.range(of: #"-[0-9a-z]{16,}$"#, options: .regularExpression) {
+            return String(name[name.startIndex..<range.lowerBound])
+        }
+        return name
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
+            // ── Header ──────────────────────────────────────────────
             Button {
-                withAnimation(.spring(response: 0.35)) { expanded.toggle() }
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
+                }
             } label: {
-                HStack {
-                    Label("Show / Hide Categories", systemImage: "eye")
-                        .font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 10)
+
+                    Image(systemName: category.icon)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(category.color)
+                        .themeIconBadge(color: category.color, size: 22)
+
+                    Text(category.title)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+
                     Spacer()
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.caption2).foregroundStyle(.tertiary)
+
+                    if totalSize > 0 {
+                        Text(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))
+                            .font(.caption).fontWeight(.medium)
+                            .foregroundStyle(.secondary).monospacedDigit()
+                    } else {
+                        Text("Not scanned")
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("\(category.title), \(isExpanded ? "expanded" : "collapsed")")
 
-            if expanded {
-                VStack(spacing: 2) {
-                    ForEach(storageManager.orderedCategories) { category in
-                        HStack(spacing: 8) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .fill(category.color.opacity(0.12))
-                                    .frame(width: 20, height: 20)
-                                Image(systemName: category.icon)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(category.color)
+            // ── Expanded Items ───────────────────────────────────────
+            if isExpanded && !items.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(items) { item in
+                        let selected = selectedIDs.contains(item.id)
+                        Button {
+                            if selected { selectedIDs.remove(item.id) }
+                            else { selectedIDs.insert(item.id) }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: selected ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(selected ? category.color : Color.secondary.opacity(0.6))
+
+                                Text(displayName(for: item))
+                                    .font(.caption)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+
+                                Spacer(minLength: 4)
+
+                                Text(item.formattedSize)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
                             }
-                            Text(category.title)
-                                .font(.caption)
-                                .foregroundStyle(storageManager.isCategoryHidden(category) ? .secondary : .primary)
-                            Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { !storageManager.isCategoryHidden(category) },
-                                set: { _ in
-                                    withAnimation { storageManager.toggleCategoryVisibility(category) }
-                                }
-                            ))
-                            .toggleStyle(.switch)
-                            .controlSize(.mini)
-                            .labelsHidden()
+                            .padding(.vertical, 3)
+                            .padding(.horizontal, 6)
+                            .background(
+                                selected ? category.color.opacity(0.08) : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            )
                         }
-                        .padding(.vertical, 2)
+                        .buttonStyle(.plain)
                     }
                 }
-                .padding(.top, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .padding(.top, 6)
+                .padding(.leading, 18)
+
+                // ── Delete Buttons ───────────────────────────────────
+                HStack(spacing: 6) {
+                    if !selectedItems.isEmpty {
+                        Button {
+                            let toDelete = selectedItems
+                            Task {
+                                isDeleting = true
+                                await storageManager.deleteItems(toDelete, from: category)
+                                selectedIDs = []
+                                isDeleting = false
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                if isDeleting { ProgressView().scaleEffect(0.6) }
+                                Text("Delete Selected (\(selectedItems.count))")
+                                    .lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Theme.accentRed)
+                        .controlSize(.small)
+                        .disabled(isDeleting)
+                    }
+
+                    Button {
+                        let all = items
+                        Task {
+                            isDeleting = true
+                            await storageManager.deleteItems(all, from: category)
+                            selectedIDs = []
+                            isDeleting = false
+                        }
+                    } label: {
+                        Text(selectedItems.isEmpty ? "Delete All" : "All")
+                            .frame(maxWidth: selectedItems.isEmpty ? .infinity : nil)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Theme.accentRed)
+                    .controlSize(.small)
+                    .disabled(isDeleting)
+                }
+                .padding(.top, 8)
+                .padding(.leading, 18)
             }
         }
     }
@@ -276,23 +405,21 @@ private struct MenuBarCategoryToggles: View {
 // MARK: - Actions
 
 private struct MenuBarActions: View {
-    @Binding var isScanning: Bool
     @ObservedObject var storageManager: StorageManager
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
+    @AppStorage("settingsSelectedTab") private var settingsSelectedTab = "general"
 
     var body: some View {
         VStack(spacing: 6) {
             Button {
-                Task {
-                    isScanning = true
-                    await storageManager.scan()
-                    isScanning = false
-                }
+                Task { await storageManager.scanMenuBarCategories() }
             } label: {
                 HStack {
-                    if isScanning {
-                        IndeterminateSpinner(size: 16, color: .secondary)
+                    if storageManager.isMenuBarScanRunning {
+                        IndeterminateSpinner(size: 14, color: .white)
                         Text("Scanning… \(Int(storageManager.scanProgress * 100))%")
+                            .monospacedDigit()
                     } else {
                         Image(systemName: "arrow.clockwise")
                         Text("Scan Now")
@@ -303,7 +430,23 @@ private struct MenuBarActions: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.accentGreen)
-            .disabled(isScanning)
+            .disabled(storageManager.isMenuBarScanRunning)
+            .accessibilityLabel(storageManager.isMenuBarScanRunning ? "Scanning in progress" : "Scan now")
+            .accessibilityHint("Scans selected menu bar categories")
+
+            Button {
+                settingsSelectedTab = "menubar"
+                openSettings()
+                NSApp.activate(ignoringOtherApps: true)
+            } label: {
+                HStack {
+                    Image(systemName: "slider.horizontal.3")
+                    Text("Customize Menu")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Customize menu bar categories")
 
             HStack(spacing: 6) {
                 Button {
@@ -317,6 +460,7 @@ private struct MenuBarActions: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .accessibilityLabel("Open Detox main window")
 
                 Button(role: .destructive) {
                     NSApp.terminate(nil)
@@ -329,6 +473,7 @@ private struct MenuBarActions: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(Theme.accentRed)
+                .accessibilityLabel("Quit Detox")
             }
         }
     }

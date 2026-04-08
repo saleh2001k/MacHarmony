@@ -264,6 +264,7 @@ struct CategoryHeader: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(isDeleting)
+            .accessibilityLabel("Select items")
 
             if hasSelection {
                 if isSafeMode {
@@ -273,6 +274,7 @@ struct CategoryHeader: View {
                     .buttonStyle(ThemePrimaryButton(color: Theme.accentAmber))
                     .disabled(isDeleting)
                     .transition(.scale.combined(with: .opacity))
+                    .accessibilityLabel(isDeleting ? "Staging in progress" : "Stage selected files")
                 } else {
                     Button { onClean() } label: {
                         HStack(spacing: 6) {
@@ -284,6 +286,7 @@ struct CategoryHeader: View {
                     .buttonStyle(ThemeDestructiveButton())
                     .disabled(isDeleting)
                     .transition(.scale.combined(with: .opacity))
+                    .accessibilityLabel(isDeleting ? "Deletion in progress" : "Delete selected files")
                 }
             }
         }

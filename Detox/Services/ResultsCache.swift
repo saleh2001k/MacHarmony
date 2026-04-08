@@ -24,7 +24,10 @@ actor ResultsCache {
     // MARK: - Init
 
     init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+                  .appendingPathComponent("Library/Application Support", isDirectory: true)
         let dir = appSupport.appendingPathComponent("Detox", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let jsonURL  = dir.appendingPathComponent("results-cache.json")
@@ -34,7 +37,9 @@ actor ResultsCache {
         if let data = try? Data(contentsOf: jsonURL),
            let decoded = try? JSONDecoder().decode(CachedResults.self, from: data) {
             cached = decoded
+            #if DEBUG
             print("📦 ResultsCache: loaded \(decoded.builtinItems.values.map(\.count).reduce(0,+)) items")
+            #endif
         }
         // Remove any stale plist left over from the previous encoder
         try? FileManager.default.removeItem(at: plistURL)

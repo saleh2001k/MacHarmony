@@ -47,7 +47,9 @@ class FileAccessService {
         // this directory and all its subdirectories for the app's lifetime.
         securityScopedURL = url
         let granted = url.startAccessingSecurityScopedResource()
+        #if DEBUG
         print("🔐 Security-scoped access granted: \(granted) for \(url.path)")
+        #endif
 
         return url.path
     }

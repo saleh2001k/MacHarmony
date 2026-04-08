@@ -81,7 +81,9 @@ actor FileIndex: Sendable {
         entries = allEntries
         indexedRoots = scanRoots
         isReady = true
+        #if DEBUG
         print("📇 FileIndex: indexed \(entries.count) files")
+        #endif
     }
 
     // MARK: - Coverage Check

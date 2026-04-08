@@ -12,7 +12,7 @@ final class QuickLookCoordinator: NSObject, QLPreviewPanelDataSource, QLPreviewP
 
     func show(path: String) {
         previewURL = URL(fileURLWithPath: path)
-        let panel = QLPreviewPanel.shared()!
+        guard let panel = QLPreviewPanel.shared() else { return }
         panel.dataSource = self
         panel.delegate = self
         panel.makeKeyAndOrderFront(nil)

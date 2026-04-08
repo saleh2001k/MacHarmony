@@ -22,6 +22,9 @@ actor StorageScanner {
     private var excludedPaths: [String] = []
     private var globalMinBytes: Int64 = 0
 
+    /// Set to true during a scan if any trash root was inaccessible due to missing FDA.
+    private(set) var trashScanWasDenied: Bool = false
+
     // MARK: - Configuration
 
     func configure(ignoredNames: [String], excludedPaths: [String], globalMinBytes: Int64) {
@@ -88,7 +91,9 @@ actor StorageScanner {
             items = await scanTrashDirectories(onFileScanned: onFileScanned)
         }
 
+        #if DEBUG
         print("📊 \(category.title): \(items.count) items")
+        #endif
         return items.sorted { $0.size > $1.size }
     }
 
@@ -134,7 +139,9 @@ actor StorageScanner {
             minBytes: 0,
             onFileScanned: onFileScanned
         )
+        #if DEBUG
         print("📊 Custom '\(category.name)': \(items.count) items")
+        #endif
         return items.sorted { $0.size > $1.size }
     }
 
@@ -151,10 +158,14 @@ actor StorageScanner {
 
         for path in paths {
             guard FileManager.default.fileExists(atPath: path) else {
+                #if DEBUG
                 print("❌ Path does not exist: \(path)")
+                #endif
                 continue
             }
+            #if DEBUG
             print("✅ Scanning top-level: \(path)")
+            #endif
 
             let stream = engine.scanTopLevel(root: path)
             for await entry in stream {
@@ -185,10 +196,14 @@ actor StorageScanner {
 
         for path in paths {
             guard FileManager.default.fileExists(atPath: path) else {
+                #if DEBUG
                 print("❌ Path does not exist: \(path)")
+                #endif
                 continue
             }
+            #if DEBUG
             print("✅ Scanning top-level (all): \(path)")
+            #endif
 
             let stream = engine.scanTopLevelAll(root: path)
             for await entry in stream {
@@ -235,10 +250,14 @@ actor StorageScanner {
         var scanRoots: [String] = []
         for path in paths {
             guard fm.fileExists(atPath: path) else {
+                #if DEBUG
                 print("❌ Path does not exist: \(path)")
+                #endif
                 continue
             }
+            #if DEBUG
             print("✅ Scanning files deep (parallel): \(path)")
+            #endif
 
             // Expand to top-level subdirectories for parallelism
             if let children = try? fm.contentsOfDirectory(atPath: path), children.count > 5 {
@@ -330,7 +349,9 @@ actor StorageScanner {
         .filter { FileManager.default.fileExists(atPath: $0) }
 
         guard !searchRoots.isEmpty else { return [] }
+        #if DEBUG
         print("✅ Scanning node_modules in \(searchRoots.count) roots")
+        #endif
 
         var items: [StorageItem] = []
         let stream = engine.scan(roots: searchRoots, targetNames: ["node_modules"])
@@ -400,24 +421,9 @@ actor StorageScanner {
     private func scanTrashDirectories(
         onFileScanned: (@Sendable (String) -> Void)?
     ) async -> [StorageItem] {
+        trashScanWasDenied = false
         let fm = FileManager.default
         let uid = String(getuid())
-
-        // Pre-flight: verify Full Disk Access before scanning any trash root.
-        // ~/.Trash is the most reliable indicator — it exists for every user and
-        // requires FDA to list its contents. If listing throws, skip the scan
-        // immediately so StorageManager can surface the trashAccessDenied flag
-        // without wasting time on a scan that will produce nothing.
-        let homeTrash = fm.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
-        if fm.fileExists(atPath: homeTrash.path) {
-            do {
-                _ = try fm.contentsOfDirectory(atPath: homeTrash.path)
-            } catch {
-                print("⚠️ Full Disk Access not granted — skipping trash scan.")
-                print("   → Grant Full Disk Access to Detox in System Settings → Privacy & Security")
-                return []
-            }
-        }
 
         // Collect candidate trash roots, deduplicating by standardized path.
         var seen = Set<String>()
@@ -454,8 +460,11 @@ actor StorageScanner {
             do {
                 names = try fm.contentsOfDirectory(atPath: root)
             } catch {
+                #if DEBUG
                 print("⚠️ Trash access denied at \(root): \(error.localizedDescription)")
                 print("   → Grant Full Disk Access to Detox in System Settings → Privacy & Security")
+                #endif
+                trashScanWasDenied = true
                 continue
             }
 
@@ -505,12 +514,16 @@ actor StorageScanner {
         onFileScanned?(entry.path)
 
         if let cached = await cache.getCached(path: entry.path) {
+            #if DEBUG
             print("⚡️ ScanCache HIT: \((entry.path as NSString).lastPathComponent) → \(ByteCountFormatter.string(fromByteCount: cached.size, countStyle: .file))")
+            #endif
             return cached.size
         }
 
         let size = await sizeCalc.calculateSize(at: entry.path)
+        #if DEBUG
         print("📐 ScanCache MISS (fresh): \((entry.path as NSString).lastPathComponent) → \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
+        #endif
 
         if size > 0 {
             await cache.cache(path: entry.path, size: size, lastModified: entry.modifiedDate)

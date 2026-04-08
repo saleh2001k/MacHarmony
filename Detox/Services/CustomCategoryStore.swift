@@ -10,7 +10,10 @@ actor CustomCategoryStore {
     private let fileURL: URL
 
     init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+                  .appendingPathComponent("Library/Application Support", isDirectory: true)
         let dir = appSupport.appendingPathComponent("Detox", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("custom-categories.json")

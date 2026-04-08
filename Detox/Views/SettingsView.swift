@@ -9,22 +9,103 @@ import AppKit
 // MARK: - Root
 
 struct SettingsView: View {
+    @AppStorage("settingsSelectedTab") private var selectedTab = "general"
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             GeneralSettingsTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag("general")
             ScanSettingsTab()
                 .tabItem { Label("Scan", systemImage: "magnifyingglass") }
+                .tag("scan")
             CategoriesSettingsTab()
                 .tabItem { Label("Categories", systemImage: "square.grid.2x2") }
+                .tag("categories")
+            MenuBarSettingsTab()
+                .tabItem { Label("Menu Bar", systemImage: "menubar.rectangle") }
+                .tag("menubar")
             NotificationsSettingsTab()
                 .tabItem { Label("Notifications", systemImage: "bell") }
+                .tag("notifications")
             ExportSettingsTab()
                 .tabItem { Label("Export", systemImage: "square.and.arrow.up") }
+                .tag("export")
             CustomScannersSettingsTab()
                 .tabItem { Label("Custom Scanners", systemImage: "slider.horizontal.3") }
+                .tag("custom")
         }
-        .frame(width: 640, height: 540)
+        .frame(width: 640, height: 580)
+    }
+}
+
+// MARK: - Menu Bar Tab
+
+private struct MenuBarSettingsTab: View {
+    @EnvironmentObject var storageManager: StorageManager
+    @AppStorage("derivedDataAutocleanEnabled") private var autocleanEnabled = false
+    @AppStorage("derivedDataAutocleanInterval") private var autocleanInterval: Double = 604800
+
+    private let intervalOptions: [(String, Double)] = [
+        ("Daily", 86400),
+        ("Weekly", 604800),
+        ("Monthly", 2_592_000),
+    ]
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(storageManager.orderedCategories) { category in
+                    HStack(spacing: 10) {
+                        Image(systemName: category.icon)
+                            .foregroundStyle(category.color)
+                            .frame(width: 20)
+                        Text(category.title)
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { storageManager.isInMenuBar(category) },
+                            set: { _ in
+                                withAnimation { storageManager.toggleMenuBarCategory(category) }
+                            }
+                        ))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .labelsHidden()
+                    }
+                }
+            } header: {
+                Text("Visible in Menu Bar")
+            } footer: {
+                Text("Only selected categories appear in the menu bar popup and are scanned when you tap \"Scan Now\" from the menu.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Automatically clean Derived Data", isOn: $autocleanEnabled)
+                    .onChange(of: autocleanEnabled) { _, _ in
+                        storageManager.scheduleDerivedDataAutocleanIfNeeded()
+                    }
+
+                if autocleanEnabled {
+                    Picker("Frequency", selection: $autocleanInterval) {
+                        ForEach(intervalOptions, id: \.1) { label, value in
+                            Text(label).tag(value)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: autocleanInterval) { _, _ in
+                        storageManager.scheduleDerivedDataAutocleanIfNeeded()
+                    }
+                }
+            } header: {
+                Text("Derived Data Auto-Clean")
+            } footer: {
+                Text("Detox will automatically scan and permanently delete all Derived Data on the chosen schedule. This runs silently in the background.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .animation(.easeInOut(duration: 0.2), value: autocleanEnabled)
     }
 }
 

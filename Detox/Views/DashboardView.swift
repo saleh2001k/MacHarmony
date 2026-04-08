@@ -306,64 +306,49 @@ struct DashboardView: View {
     // MARK: - Distribution Chart
 
     private var chartSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 20) {
             Text("DISTRIBUTION")
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.2)
                 .foregroundStyle(sectionHeaderColor)
 
-            HStack(alignment: .center, spacing: 24) {
-                // Donut chart
-                if #available(macOS 14.0, *) {
+            if #available(macOS 14.0, *) {
+                HStack(alignment: .top, spacing: 28) {
+                    // Donut
                     Chart(chartEntries) { entry in
                         SectorMark(
                             angle: .value("Size", entry.size),
-                            innerRadius: .ratio(0.62),
-                            angularInset: 2
+                            innerRadius: .ratio(0.66),
+                            angularInset: 2.5
                         )
                         .foregroundStyle(entry.color)
-                        .cornerRadius(3)
+                        .cornerRadius(4)
                     }
                     .chartLegend(.hidden)
-                    .frame(width: 120, height: 120)
-                    .overlay(alignment: .center) {
-                        if let top = chartEntries.first {
-                            VStack(spacing: 2) {
-                                Text(top.title)
-                                    .font(.system(size: 9, weight: .bold))
-                                    .lineLimit(1)
-                                    .foregroundStyle(.primary)
-                                Text(ByteCountFormatter.string(fromByteCount: top.size, countStyle: .file))
-                                    .font(.system(size: 8))
-                                    .monospacedDigit()
-                                    .foregroundStyle(.secondary)
-                            }
-                            .multilineTextAlignment(.center)
-                            .frame(width: 60)
-                        }
-                    }
-                }
-
-                // Legend
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(chartEntries) { entry in
-                        HStack(spacing: 8) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(entry.color)
-                                .frame(width: 8, height: 8)
-                            Text(entry.title)
-                                .font(.caption)
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            Spacer(minLength: 8)
-                            Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
-                                .font(.caption)
+                    .frame(width: 140, height: 140)
+                    .overlay {
+                        VStack(spacing: 3) {
+                            Text(storageManager.totalCleanableSize)
+                                .font(.system(size: 13, weight: .bold))
                                 .monospacedDigit()
+                                .foregroundStyle(.primary)
+                                .minimumScaleFactor(0.7)
+                                .lineLimit(1)
+                            Text("cleanable")
+                                .font(.system(size: 9, weight: .medium))
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(width: 76)
                     }
+
+                    // Rows
+                    VStack(spacing: 10) {
+                        ForEach(chartEntries) { entry in
+                            DistributionRow(entry: entry, total: totalCleanableBytes)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
             }
         }
         .padding(.horizontal, 24)
@@ -482,6 +467,68 @@ private struct SegmentedCategoryBar: View {
     }
 }
 
+// MARK: - Distribution Row
+
+private struct DistributionRow: View {
+    let entry: ChartEntry
+    let total: Int64
+
+    @State private var barWidth: CGFloat = 0
+
+    private var fraction: Double {
+        total > 0 ? Double(entry.size) / Double(total) : 0
+    }
+
+    private var pct: String {
+        "\(Int((fraction * 100).rounded()))%"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(entry.color)
+                    .frame(width: 10, height: 10)
+                Text(entry.title)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text(pct)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+                    .foregroundStyle(entry.color)
+                Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(entry.color.opacity(0.12))
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(entry.color.opacity(0.75))
+                        .frame(width: barWidth == 0
+                               ? 0
+                               : max(6, geo.size.width * fraction))
+                        .animation(.spring(response: 0.55, dampingFraction: 0.8).delay(0.05), value: barWidth)
+                }
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        barWidth = geo.size.width
+                    }
+                }
+            }
+            .frame(height: 5)
+            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+        }
+    }
+}
+
 // MARK: - Stat Card
 
 private struct StatCard: View {
@@ -529,6 +576,8 @@ private struct StatCard: View {
                 )
         )
         .animation(.easeInOut(duration: 0.12), value: isHovered)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
 
         if let action {
             Button(action: action) { cardContent }
@@ -589,6 +638,8 @@ private struct QuickToolCard: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovered)
+        .accessibilityLabel(tool.title)
+        .accessibilityHint(tool.description)
     }
 }
 
@@ -618,6 +669,8 @@ private struct DiskBarView: View {
         .onChange(of: fraction) { _, newValue in
             withAnimation(.spring(response: 0.6)) { animatedFraction = newValue }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Disk usage: \(Int(fraction * 100)) percent")
     }
 }
 
@@ -660,5 +713,7 @@ private struct DashboardCategoryRow: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovered)
+        .accessibilityLabel("\(entry.title), \(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file)) cleanable")
+        .accessibilityHint("Opens \(entry.title) detail view")
     }
 }
