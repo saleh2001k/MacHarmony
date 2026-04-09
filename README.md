@@ -1,7 +1,7 @@
-# Detox
+# MacHarmony
 
 <p align="center">
-  <img src="./assets/Detox-App-Icon.png" alt="Detox Hero" width="200" />
+  <img src="./assets/MacHarmony-App-Icon.png" alt="MacHarmony Hero" width="200" />
 </p>
 
 A fast, modern macOS app for scanning, analyzing, and cleaning storage — built for developers and power users.
@@ -53,12 +53,12 @@ Supporting types: `ModelsToolType.swift` (enum + `LargeFileGroup`), `ModelsAppEn
 
 ## Project Structure
 
-Flat layout under `Detox/` (Xcode may group files visually; names match the repo).
+Flat layout under `MacHarmony/` (Xcode may group files visually; names match the repo).
 
 ```
-Detox/
+MacHarmony/
 │
-├── DetoxApp.swift              # App entry, scenes, menu bar, Settings
+├── MacHarmonyApp.swift              # App entry, scenes, menu bar, Settings
 ├── ContentView.swift                   # NavigationSplitView, toolbar, ToolRouterView
 │
 ├── Models/
