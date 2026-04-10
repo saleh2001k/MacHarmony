@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		4CCA9E232F681BF500786BBE /* Detox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Detox.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4CCA9E232F681BF500786BBE /* MacHarmony.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacHarmony.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4CCA9E252F681BF500786BBE /* Detox */ = {
+		4CCA9E252F681BF500786BBE /* MacHarmony */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Detox;
+			path = MacHarmony;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		4CCA9E1A2F681BF500786BBE = {
 			isa = PBXGroup;
 			children = (
-				4CCA9E252F681BF500786BBE /* Detox */,
+				4CCA9E252F681BF500786BBE /* MacHarmony */,
 				4CCA9E242F681BF500786BBE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +40,7 @@
 		4CCA9E242F681BF500786BBE /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4CCA9E232F681BF500786BBE /* Detox.app */,
+				4CCA9E232F681BF500786BBE /* MacHarmony.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4CCA9E222F681BF500786BBE /* Detox */ = {
+		4CCA9E222F681BF500786BBE /* MacHarmony */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4CCA9E2E2F681BF600786BBE /* Build configuration list for PBXNativeTarget "Detox" */;
+			buildConfigurationList = 4CCA9E2E2F681BF600786BBE /* Build configuration list for PBXNativeTarget "MacHarmony" */;
 			buildPhases = (
 				4CCA9E1F2F681BF500786BBE /* Sources */,
 				4CCA9E202F681BF500786BBE /* Frameworks */,
@@ -61,13 +61,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				4CCA9E252F681BF500786BBE /* Detox */,
+				4CCA9E252F681BF500786BBE /* MacHarmony */,
 			);
-			name = Detox;
+			name = MacHarmony;
 			packageProductDependencies = (
 			);
-			productName = Detox;
-			productReference = 4CCA9E232F681BF500786BBE /* Detox.app */;
+			productName = MacHarmony;
+			productReference = 4CCA9E232F681BF500786BBE /* MacHarmony.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 4CCA9E1E2F681BF500786BBE /* Build configuration list for PBXProject "Detox" */;
+			buildConfigurationList = 4CCA9E1E2F681BF500786BBE /* Build configuration list for PBXProject "MacHarmony" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4CCA9E222F681BF500786BBE /* Detox */,
+				4CCA9E222F681BF500786BBE /* MacHarmony */,
 			);
 		};
 /* End PBXProject section */
@@ -314,7 +314,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		4CCA9E1E2F681BF500786BBE /* Build configuration list for PBXProject "Detox" */ = {
+		4CCA9E1E2F681BF500786BBE /* Build configuration list for PBXProject "MacHarmony" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4CCA9E2C2F681BF600786BBE /* Debug */,
@@ -323,7 +323,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4CCA9E2E2F681BF600786BBE /* Build configuration list for PBXNativeTarget "Detox" */ = {
+		4CCA9E2E2F681BF600786BBE /* Build configuration list for PBXNativeTarget "MacHarmony" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4CCA9E2F2F681BF600786BBE /* Debug */,

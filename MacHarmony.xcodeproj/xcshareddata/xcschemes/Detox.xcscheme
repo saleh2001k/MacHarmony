@@ -17,8 +17,8 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "4CCA9E222F681BF500786BBE"
                BuildableName = "MacHarmony.app"
-               BlueprintName = "Detox"
-               ReferencedContainer = "container:Detox.xcodeproj">
+               BlueprintName = "MacHarmony"
+               ReferencedContainer = "container:MacHarmony.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,7 +46,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "4CCA9E222F681BF500786BBE"
             BuildableName = "MacHarmony.app"
-            BlueprintName = "Detox"
+            BlueprintName = "MacHarmony"
             ReferencedContainer = "container:Detox.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -63,8 +63,8 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "4CCA9E222F681BF500786BBE"
             BuildableName = "MacHarmony.app"
-            BlueprintName = "Detox"
-            ReferencedContainer = "container:Detox.xcodeproj">
+            BlueprintName = "MacHarmony"
+            ReferencedContainer = "container:MacHarmony.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
