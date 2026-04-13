@@ -18,6 +18,7 @@ struct AboutView: View {
         case reportBug   = "Report a Bug"
         case suggest     = "Suggest a Feature"
         case contact     = "Contact Us"
+        case privacy     = "Privacy Policy"
 
         var icon: String {
             switch self {
@@ -25,6 +26,7 @@ struct AboutView: View {
             case .reportBug: return "ant.fill"
             case .suggest:   return "lightbulb.fill"
             case .contact:   return "envelope.fill"
+            case .privacy:   return "lock.shield.fill"
             }
         }
 
@@ -34,6 +36,7 @@ struct AboutView: View {
             case .reportBug: return .red
             case .suggest:   return .orange
             case .contact:   return .blue
+            case .privacy:   return .purple
             }
         }
     }
@@ -102,6 +105,7 @@ struct AboutView: View {
                 case .reportBug: AboutSection_ReportBug()
                 case .suggest:   AboutSection_Suggest()
                 case .contact:   AboutSection_Contact()
+                case .privacy:   AboutSection_Privacy()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -242,7 +246,7 @@ private struct AboutSection_ReportBug: View {
                     HStack {
                         Spacer()
                         Button("Open GitHub Issues") {
-                            NSWorkspace.shared.open(URL(string: "https://github.com/")!)
+                            NSWorkspace.shared.open(URL(string: "https://github.com/macharmony/macharmony/issues")!)
                         }
                         .buttonStyle(.bordered)
 
@@ -382,6 +386,47 @@ private struct AboutSection_Contact: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(28)
+        }
+    }
+}
+
+// MARK: - Privacy Policy Section
+
+private struct AboutSection_Privacy: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                AboutSectionHeader(
+                    icon: "lock.shield.fill",
+                    color: .purple,
+                    title: "Privacy Policy",
+                    subtitle: "How MacHarmony handles your data"
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    AboutFeatureRow(icon: "wifi.slash", color: .purple,
+                                   title: "No Network Access",
+                                   detail: "MacHarmony never connects to the internet. All operations run entirely on your Mac.")
+                    AboutFeatureRow(icon: "eye.slash.fill", color: .indigo,
+                                   title: "No Telemetry or Analytics",
+                                   detail: "We collect zero usage data, crash reports, or analytics. Your activity is never tracked.")
+                    AboutFeatureRow(icon: "externaldrive.fill", color: .blue,
+                                   title: "Files Stay on Your Mac",
+                                   detail: "Scanned files and storage data never leave your device. Nothing is uploaded anywhere.")
+                }
+
+                Divider().opacity(0.5)
+
+                HStack {
+                    Spacer()
+                    Button("View Full Privacy Policy") {
+                        NSWorkspace.shared.open(URL(string: "https://macharmony.com/privacy")!)
+                    }
+                    .buttonStyle(ThemePrimaryButton(color: .purple))
+                    Spacer()
                 }
             }
             .padding(28)

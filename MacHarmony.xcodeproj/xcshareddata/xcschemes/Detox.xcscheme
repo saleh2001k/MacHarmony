@@ -47,7 +47,7 @@
             BlueprintIdentifier = "4CCA9E222F681BF500786BBE"
             BuildableName = "MacHarmony.app"
             BlueprintName = "MacHarmony"
-            ReferencedContainer = "container:Detox.xcodeproj">
+            ReferencedContainer = "container:MacHarmony.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
