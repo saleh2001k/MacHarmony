@@ -8,7 +8,6 @@ import SwiftUI
 enum ToolType: String, CaseIterable, Identifiable {
     case largeFileBrowser
     case oldUnusedFiles
-    case emptyFolders
     case appUninstaller
     case appCacheBreakdown
     case leftoverFiles
@@ -25,7 +24,6 @@ enum ToolType: String, CaseIterable, Identifiable {
         switch self {
         case .largeFileBrowser:   return "Large File Browser"
         case .oldUnusedFiles:     return "Old & Unused Files"
-        case .emptyFolders:       return "Empty Folders"
         case .appUninstaller:     return "App Uninstaller"
         case .appCacheBreakdown:  return "App Cache Breakdown"
         case .leftoverFiles:      return "Leftover Files"
@@ -42,7 +40,6 @@ enum ToolType: String, CaseIterable, Identifiable {
         switch self {
         case .largeFileBrowser:   return "doc.text.magnifyingglass"
         case .oldUnusedFiles:     return "clock.badge.xmark"
-        case .emptyFolders:       return "folder.badge.minus"
         case .appUninstaller:     return "trash.circle.fill"
         case .appCacheBreakdown:  return "square.stack.3d.up.fill"
         case .leftoverFiles:      return "questionmark.folder.fill"
@@ -59,7 +56,6 @@ enum ToolType: String, CaseIterable, Identifiable {
         switch self {
         case .largeFileBrowser:   return .orange
         case .oldUnusedFiles:     return .indigo
-        case .emptyFolders:       return .teal
         case .appUninstaller:     return .red
         case .appCacheBreakdown:  return .purple
         case .leftoverFiles:      return Color(red: 0.6, green: 0.4, blue: 0.2)
@@ -76,7 +72,6 @@ enum ToolType: String, CaseIterable, Identifiable {
         switch self {
         case .largeFileBrowser:   return "Find files larger than a custom threshold"
         case .oldUnusedFiles:     return "Surface files not modified in months"
-        case .emptyFolders:       return "Find and remove empty directories"
         case .appUninstaller:     return "Uninstall apps and all their support files"
         case .appCacheBreakdown:  return "See which app eats the most cache space"
         case .leftoverFiles:      return "Orphaned files from deleted apps"

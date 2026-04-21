@@ -2,8 +2,6 @@
 //  macHarmonyApp.swift
 //  MacHarmony
 //
-//  Created by saleh on 16/03/2026.
-//
 
 import SwiftUI
 import AppKit
@@ -11,6 +9,9 @@ import AppKit
 // Keeps the app alive after the last window closes.
 // Dynamically shows/hides the Dock icon based on whether the main window is open.
 class AppDelegate: NSObject, NSApplicationDelegate {
+
+    // Injected by MacHarmonyApp so deep links can reach AuthManager
+    var authManager: AuthManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Start hidden from the Dock — run as a menu-bar-only app by default
@@ -40,6 +41,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateCancel
     }
 
+    // Handle macharmony://auth?token=<x> deep links from the browser
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.first,
+              url.scheme == "macharmony",
+              url.host == "auth"
+        else { return }
+
+        // Bring the window to front
+        NSApp.activate(ignoringOtherApps: true)
+
+        Task { @MainActor in
+            await authManager?.handleDeepLink(url)
+        }
+    }
+
     // A regular titled window gained focus → show in Dock
     @objc private func windowDidBecomeKey(_ note: Notification) {
         guard let win = note.object as? NSWindow,
@@ -64,22 +80,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 struct MacHarmonyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+    @StateObject private var storageManager = StorageManager()
+    @StateObject private var authManager    = AuthManager()
+    @AppStorage("useDarkMode") private var useDarkMode = true
+
     init() {
         #if DEBUG
         UserDefaults.standard.set(false, forKey: "hasShownOnboarding")
         #endif
     }
-    @StateObject private var storageManager = StorageManager()
-    @AppStorage("useDarkMode") private var useDarkMode = true
 
     var body: some Scene {
         WindowGroup(id: "main") {
-            ContentView()
+            AuthGatedView()
                 .environmentObject(storageManager)
+                .environmentObject(authManager)
                 .preferredColorScheme(useDarkMode ? .dark : .light)
                 .task {
-                    storageManager.scheduleAutoScanIfNeeded()
-                    storageManager.scheduleDerivedDataAutocleanIfNeeded()
+                    // Give AppDelegate a reference so deep links reach AuthManager
+                    appDelegate.authManager = authManager
+
+                    // Validate license on every launch
+                    await authManager.validateOnLaunch()
+
+                    // Background tasks run for all active users (paid, trial, offline grace)
+                    switch authManager.state {
+                    case .authenticated, .offlineGrace, .trial:
+                        storageManager.scheduleAutoScanIfNeeded()
+                        storageManager.scheduleDerivedDataAutocleanIfNeeded()
+                    default:
+                        break
+                    }
                 }
         }
         .commands {

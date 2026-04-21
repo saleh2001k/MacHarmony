@@ -15,13 +15,13 @@ struct ViewsEmptyFolderView: View {
         VStack(spacing: 0) {
             // Header
             HStack(spacing: 14) {
-                Image(systemName: ToolType.emptyFolders.icon)
+                Image(systemName: "folder.badge.minus")
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(ToolType.emptyFolders.color)
-                    .themeIconBadge(color: ToolType.emptyFolders.color, size: 44)
+                    .foregroundStyle(Color.teal)
+                    .themeIconBadge(color: .teal, size: 44)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(ToolType.emptyFolders.title)
+                    Text("Empty Folders")
                         .font(.title3).fontWeight(.semibold)
                     Text("\(storageManager.emptyFolders.count) empty director\(storageManager.emptyFolders.count == 1 ? "y" : "ies") found")
                         .font(.caption).foregroundStyle(.secondary)
@@ -74,10 +74,10 @@ struct ViewsEmptyFolderView: View {
                 ToolLoadingView(message: "Scanning for empty folders…")
             } else if storageManager.emptyFolders.isEmpty {
                 ToolEmptyView(
-                    icon: ToolType.emptyFolders.icon,
+                    icon: "folder.badge.minus",
                     title: "No Empty Folders Found",
                     subtitle: "Press Scan to search for empty directories\nin your home folder.",
-                    color: ToolType.emptyFolders.color
+                    color: .teal
                 )
             } else {
                 List(storageManager.emptyFolders, selection: $selectedItems) { item in
@@ -121,12 +121,12 @@ private struct EmptyFolderRow: View {
         HStack(spacing: 12) {
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 16))
-                .foregroundStyle(isSelected ? ToolType.emptyFolders.color : .secondary)
+                .foregroundStyle(isSelected ? Color.teal : .secondary)
                 .animation(.spring(response: 0.2), value: isSelected)
 
             Image(systemName: "folder")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(ToolType.emptyFolders.color)
+                .foregroundStyle(Color.teal)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name).font(.subheadline).fontWeight(.medium)

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+  <!-- macharmony:// URL scheme — required for the browser → app deep link -->
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.macharmony.app</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>macharmony</string>
+      </array>
+    </dict>
+  </array>
+
+  <!-- Sparkle auto-update configuration -->
+  <key>SUFeedURL</key>
+  <string>https://macharmony.com/appcast.xml</string>
+
+  <!-- REPLACE with your actual EdDSA public key after running Sparkle's generate_keys tool -->
+  <key>SUPublicEDKey</key>
+  <string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
+
+  <!-- Check for updates every 24 hours -->
+  <key>SUScheduledCheckInterval</key>
+  <integer>86400</integer>
+
+</dict>
+</plist>

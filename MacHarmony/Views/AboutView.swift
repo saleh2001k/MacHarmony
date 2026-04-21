@@ -104,7 +104,7 @@ struct AboutView: View {
                 case .about:     AboutSection_About()
                 case .reportBug: AboutSection_ReportBug()
                 case .suggest:   AboutSection_Suggest()
-                case .contact:   AboutSection_Contact()
+                case .contact:   AboutSection_Contact(selectedSection: $selectedSection)
                 case .privacy:   AboutSection_Privacy()
                 }
             }
@@ -212,7 +212,9 @@ private struct AboutSection_ReportBug: View {
     @State private var steps = ""
     @State private var expected = ""
     @State private var actual = ""
+    @State private var submitting = false
     @State private var submitted = false
+    @State private var errorMsg = ""
 
     private var isValid: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -235,31 +237,24 @@ private struct AboutSection_ReportBug: View {
                 } else {
                     VStack(alignment: .leading, spacing: 14) {
                         AboutFormField(label: "Bug Title *", placeholder: "Short description of the issue", text: $title)
-
                         AboutFormArea(label: "Steps to Reproduce", placeholder: "1. Open the app\n2. Press Scan\n3. ...", text: $steps)
-
                         AboutFormArea(label: "Expected Behavior", placeholder: "What should have happened?", text: $expected)
-
                         AboutFormArea(label: "Actual Behavior", placeholder: "What actually happened?", text: $actual)
+                    }
+
+                    if !errorMsg.isEmpty {
+                        Text(errorMsg)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
 
                     HStack {
                         Spacer()
-                        Button("Open GitHub Issues") {
-                            NSWorkspace.shared.open(URL(string: "https://github.com/macharmony/macharmony/issues")!)
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button("Submit via Email") {
-                            sendEmail(
-                                to: "info@macharmony.com",
-                                subject: "[Bug] \(title)",
-                                body: buildBody()
-                            )
-                            submitted = true
+                        Button(submitting ? "Submitting…" : "Submit Report") {
+                            Task { await submit() }
                         }
                         .buttonStyle(ThemePrimaryButton(color: .red))
-                        .disabled(!isValid)
+                        .disabled(!isValid || submitting)
                     }
                 }
             }
@@ -267,23 +262,28 @@ private struct AboutSection_ReportBug: View {
         }
     }
 
-    private func buildBody() -> String {
-        """
-        Bug: \(title)
+    private func submit() async {
+        submitting = true
+        errorMsg = ""
+        let message = """
+            Bug: \(title)
 
-        Steps to Reproduce:
-        \(steps.isEmpty ? "Not provided" : steps)
+            Steps to Reproduce:
+            \(steps.isEmpty ? "Not provided" : steps)
 
-        Expected:
-        \(expected.isEmpty ? "Not provided" : expected)
+            Expected:
+            \(expected.isEmpty ? "Not provided" : expected)
 
-        Actual:
-        \(actual.isEmpty ? "Not provided" : actual)
-
-        ---
-        Version: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")
-        macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)
-        """
+            Actual:
+            \(actual.isEmpty ? "Not provided" : actual)
+            """
+        let err = await submitFeedback(
+            type: "bug",
+            subject: "[Bug] \(title)",
+            message: message
+        )
+        submitting = false
+        if let err { errorMsg = err } else { submitted = true }
     }
 }
 
@@ -292,7 +292,9 @@ private struct AboutSection_ReportBug: View {
 private struct AboutSection_Suggest: View {
     @State private var feature = ""
     @State private var reason = ""
+    @State private var submitting = false
     @State private var submitted = false
+    @State private var errorMsg = ""
 
     private var isValid: Bool { !feature.trimmingCharacters(in: .whitespaces).isEmpty }
 
@@ -318,29 +320,45 @@ private struct AboutSection_Suggest: View {
                         AboutFormArea(label: "Why would this be useful?", placeholder: "Describe the problem it solves or the workflow it improves...", text: $reason)
                     }
 
+                    if !errorMsg.isEmpty {
+                        Text(errorMsg)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
                     HStack {
                         Spacer()
-                        Button("Submit Suggestion") {
-                            sendEmail(
-                                to: "info@macharmony.com",
-                                subject: "[Feature] \(feature)",
-                                body: "Feature Request: \(feature)\n\nReason:\n\(reason.isEmpty ? "Not provided" : reason)\n\n---\nVersion: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")"
-                            )
-                            submitted = true
+                        Button(submitting ? "Submitting…" : "Submit Suggestion") {
+                            Task { await submit() }
                         }
                         .buttonStyle(ThemePrimaryButton(color: .orange))
-                        .disabled(!isValid)
+                        .disabled(!isValid || submitting)
                     }
                 }
             }
             .padding(28)
         }
     }
+
+    private func submit() async {
+        submitting = true
+        errorMsg = ""
+        let message = "Feature Request: \(feature)\n\nWhy it would be useful:\n\(reason.isEmpty ? "Not provided" : reason)"
+        let err = await submitFeedback(
+            type: "feature",
+            subject: "[Feature] \(feature)",
+            message: message
+        )
+        submitting = false
+        if let err { errorMsg = err } else { submitted = true }
+    }
 }
 
 // MARK: - Contact Section
 
 private struct AboutSection_Contact: View {
+    @Binding var selectedSection: AboutView.AboutSection
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -355,25 +373,25 @@ private struct AboutSection_Contact: View {
                     AboutContactRow(
                         icon: "envelope.fill", color: .blue,
                         title: "General Support",
-                        detail: "info@macharmony.com"
+                        detail: "Opens the support form"
                     ) {
-                        sendEmail(to: "info@macharmony.com", subject: "MacHarmony Support", body: "")
+                        withAnimation(.spring(response: 0.25)) { selectedSection = .contact }
                     }
 
                     AboutContactRow(
                         icon: "ant.fill", color: .red,
                         title: "Report a Bug",
-                        detail: "info@macharmony.com"
+                        detail: "Opens the bug report form"
                     ) {
-                        sendEmail(to: "info@macharmony.com", subject: "[Bug] ", body: "")
+                        withAnimation(.spring(response: 0.25)) { selectedSection = .reportBug }
                     }
 
                     AboutContactRow(
                         icon: "lightbulb.fill", color: .orange,
                         title: "Feature Requests",
-                        detail: "info@macharmony.com"
+                        detail: "Opens the suggestion form"
                     ) {
-                        sendEmail(to: "info@macharmony.com", subject: "[Feature] ", body: "")
+                        withAnimation(.spring(response: 0.25)) { selectedSection = .suggest }
                     }
                 }
 
@@ -606,12 +624,47 @@ private struct AboutSubmittedState: View {
     }
 }
 
-// MARK: - Email helper
+// MARK: - Feedback submission helper
 
-private func sendEmail(to: String, subject: String, body: String) {
-    let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-    let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-    if let url = URL(string: "mailto:\(to)?subject=\(encodedSubject)&body=\(encodedBody)") {
-        NSWorkspace.shared.open(url)
+private func submitFeedback(type: String, subject: String, message: String) async -> String? {
+    let url = URL(string: "https://pjrmiyopkqzammvjcevo.supabase.co/functions/v1/submit-feedback")!
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    let macOS = ProcessInfo.processInfo.operatingSystemVersionString
+
+    let payload: [String: Any] = [
+        "type": type,
+        "subject": subject,
+        "message": message,
+        "source": "app",
+        "metadata": ["app_version": version, "macos": macOS],
+    ]
+
+    guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
+        print("[Feedback] ❌ Failed to encode payload")
+        return "Failed to encode request"
+    }
+    req.httpBody = body
+
+    print("[Feedback] → POST \(url.absoluteString) type=\(type)")
+
+    do {
+        let (data, response) = try await URLSession.shared.data(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let responseBody = String(data: data, encoding: .utf8) ?? "<empty>"
+        print("[Feedback] ← \(status) \(responseBody.prefix(200))")
+
+        if status != 200 {
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let err = json["error"] as? String { return err }
+            return "Server error (\(status))"
+        }
+        return nil
+    } catch {
+        print("[Feedback] ❌ Network error: \(error)")
+        return "Network error. Please check your connection."
     }
 }

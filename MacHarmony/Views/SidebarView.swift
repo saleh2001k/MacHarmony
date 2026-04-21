@@ -14,9 +14,9 @@ struct SidebarView: View {
 
     var body: some View {
         List {
-            // Built-in categories
+            // Built-in categories — only show categories that are enabled for scanning
             Section {
-                ForEach(storageManager.orderedCategories) { category in
+                ForEach(storageManager.orderedCategories.filter { storageManager.isCategoryEnabled($0) }) { category in
                     if !storageManager.isCategoryHidden(category) || showHidden {
                         CategoryRow(
                             category: category,
@@ -38,13 +38,17 @@ struct SidebarView: View {
                     }
                 }
 
-                // Show hidden toggle
-                if storageManager.hiddenCategories.count > 0 {
+                // Show hidden toggle (only counts enabled categories that are hidden)
+                let hiddenEnabledCount = storageManager.hiddenCategories
+                    .compactMap { StorageCategory(rawValue: $0) }
+                    .filter { storageManager.isCategoryEnabled($0) }
+                    .count
+                if hiddenEnabledCount > 0 {
                     Button {
                         withAnimation { showHidden.toggle() }
                     } label: {
                         Label(
-                            showHidden ? "Hide \(storageManager.hiddenCategories.count) hidden" : "Show \(storageManager.hiddenCategories.count) hidden",
+                            showHidden ? "Hide \(hiddenEnabledCount) hidden" : "Show \(hiddenEnabledCount) hidden",
                             systemImage: showHidden ? "chevron.up" : "chevron.down"
                         )
                         .font(.caption)

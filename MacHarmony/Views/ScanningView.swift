@@ -145,7 +145,7 @@ struct ScanningFullView: View {
 
                 // ── Category Grid ────────────────────────────────────────
                 LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(Array(storageManager.orderedCategories.enumerated()), id: \.element) { idx, category in
+                    ForEach(Array(storageManager.categoriesToScan.enumerated()), id: \.element) { idx, category in
                         CategoryScanChip(
                             category: category,
                             items: storageManager.storageItems[category],

@@ -49,7 +49,7 @@ class FileAccessService {
         saveBookmark(for: url)
 
         securityScopedURL = url
-        url.startAccessingSecurityScopedResource()
+        _ = url.startAccessingSecurityScopedResource()
 
         #if DEBUG
         print("🔐 Security-scoped access granted for \(url.path)")
@@ -100,7 +100,7 @@ class FileAccessService {
             }
 
             securityScopedURL = url
-            url.startAccessingSecurityScopedResource()
+            _ = url.startAccessingSecurityScopedResource()
 
             #if DEBUG
             print("🔐 Restored security-scoped access for \(url.path)")

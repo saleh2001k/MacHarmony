@@ -117,6 +117,8 @@ struct ContentView: View {
         .sheet(isPresented: .init(get: { !hasShownOnboarding }, set: { _ in })) {
             OnboardingView { requestNotifications in
                 hasShownOnboarding = true
+                // Pick up the enabled categories the user selected in the scope step
+                storageManager.syncEnabledCategoriesFromDefaults()
                 if requestNotifications {
                     UNUserNotificationCenter.current()
                         .requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
@@ -206,7 +208,6 @@ struct ToolRouterView: View {
         switch tool {
         case .largeFileBrowser:  ViewsLargeFileBrowserView(storageManager: storageManager)
         case .oldUnusedFiles:    ViewsOldUnusedFilesView(storageManager: storageManager)
-        case .emptyFolders:      ViewsEmptyFolderView(storageManager: storageManager)
         case .appUninstaller:    ViewsAppUninstallerView(storageManager: storageManager)
         case .appCacheBreakdown: ViewsAppCacheView(storageManager: storageManager)
         case .leftoverFiles:     ViewsLeftoverFilesView(storageManager: storageManager)

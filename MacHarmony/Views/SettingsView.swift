@@ -338,19 +338,20 @@ private struct ScanSettingsTab: View {
 
 private struct CategoriesSettingsTab: View {
     @EnvironmentObject var storageManager: StorageManager
+    @State private var showScopeSection = false
 
     var body: some View {
         VStack(spacing: 0) {
             // Header bar
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Category Order")
+                    Text("Category Order & Scan Scope")
                         .font(.headline)
-                    Text("Drag rows to reorder the sidebar and scan progress display.")
+                    Text("Drag to reorder. Toggle which categories are included in scans.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Reset to Default") {
+                Button("Reset Order") {
                     storageManager.resetCategoryOrder()
                 }
                 .buttonStyle(.bordered)
@@ -363,29 +364,63 @@ private struct CategoriesSettingsTab: View {
             Divider()
 
             List {
-                ForEach(storageManager.orderedCategories) { category in
-                    HStack(spacing: 12) {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                        Image(systemName: category.icon)
-                            .foregroundStyle(category.color)
-                            .frame(width: 18)
-                        Text(category.title)
-                            .font(.system(size: 13))
-                        Spacer()
-                        if storageManager.isCategoryHidden(category) {
-                            Text("Hidden")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(.secondary.opacity(0.15), in: Capsule())
+                // Scan scope header row
+                Section {
+                    ForEach(storageManager.orderedCategories) { category in
+                        HStack(spacing: 10) {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+
+                            Image(systemName: category.icon)
+                                .foregroundStyle(storageManager.isCategoryEnabled(category) ? category.color : .secondary)
+                                .frame(width: 18)
+
+                            Text(category.title)
+                                .font(.system(size: 13))
+                                .foregroundStyle(storageManager.isCategoryEnabled(category) ? .primary : .secondary)
+
+                            Spacer()
+
+                            if storageManager.isCategoryHidden(category) {
+                                Text("Sidebar hidden")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .background(.secondary.opacity(0.15), in: Capsule())
+                            }
+
+                            Toggle("", isOn: Binding(
+                                get: { storageManager.isCategoryEnabled(category) },
+                                set: { _ in storageManager.toggleCategoryEnabled(category) }
+                            ))
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                            .labelsHidden()
                         }
+                        .padding(.vertical, 2)
                     }
-                    .padding(.vertical, 3)
-                }
-                .onMove { from, to in
-                    storageManager.moveCategories(fromOffsets: from, toOffset: to)
+                    .onMove { from, to in
+                        storageManager.moveCategories(fromOffsets: from, toOffset: to)
+                    }
+                } header: {
+                    HStack {
+                        Text("Categories")
+                        Spacer()
+                        Text("Include in scan")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    let enabledCount = storageManager.orderedCategories.filter { storageManager.isCategoryEnabled($0) }.count
+                    let total = storageManager.orderedCategories.count
+                    if enabledCount == total {
+                        Text("All \(total) categories will be scanned.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text("\(enabledCount) of \(total) categories will be scanned. Disabled categories are skipped entirely.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
         }

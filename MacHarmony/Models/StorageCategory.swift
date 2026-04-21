@@ -59,6 +59,17 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
     case iCloudPlaceholders
     case browserCache
     case timeMachineSnapshots
+    // Developer tool caches
+    case dartPubCache
+    case pipCache
+    case condaEnvs
+    case mavenCache
+    case jetBrainsCache
+    case huggingFaceCache
+    case dockerData
+    case swiftPackages
+    case rubyGemsCache
+    case unityCache
     // Trash
     case trash
 
@@ -120,6 +131,14 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
         case .timeMachineSnapshots:
             return .timeMachine
 
+        case .dartPubCache, .pipCache, .condaEnvs, .mavenCache,
+             .jetBrainsCache, .huggingFaceCache,
+             .swiftPackages, .rubyGemsCache, .unityCache:
+            return .topLevelDirs
+
+        case .dockerData:
+            return .topLevelAll
+
         case .trash:
             return .trashDirectories
         }
@@ -151,6 +170,16 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
         case .iCloudPlaceholders: return "iCloud Placeholders"
         case .browserCache: return "Browser Cache"
         case .timeMachineSnapshots: return "TM Snapshots"
+        case .dartPubCache: return "Dart / Pub Cache"
+        case .pipCache: return "pip Cache"
+        case .condaEnvs: return "Conda Environments"
+        case .mavenCache: return "Maven Cache"
+        case .jetBrainsCache: return "JetBrains Cache"
+        case .huggingFaceCache: return "Hugging Face Cache"
+        case .dockerData: return "Docker Data"
+        case .swiftPackages: return "Swift Packages Cache"
+        case .rubyGemsCache: return "Ruby Gems"
+        case .unityCache: return "Unity Cache"
         case .trash: return "Trash"
         }
     }
@@ -179,6 +208,16 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
         case .iCloudPlaceholders: return "icloud.fill"
         case .browserCache: return "globe"
         case .timeMachineSnapshots: return "clock.arrow.circlepath"
+        case .dartPubCache: return "shippingbox.fill"
+        case .pipCache: return "cube.fill"
+        case .condaEnvs: return "leaf.fill"
+        case .mavenCache: return "cup.and.saucer.fill"
+        case .jetBrainsCache: return "brain.fill"
+        case .huggingFaceCache: return "face.smiling.inverse"
+        case .dockerData: return "shippingbox.fill"
+        case .swiftPackages: return "swift"
+        case .rubyGemsCache: return "diamond.fill"
+        case .unityCache: return "gamecontroller.fill"
         case .trash: return "trash.fill"
         }
     }
@@ -207,6 +246,16 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
         case .iCloudPlaceholders: return .cyan
         case .browserCache: return .orange
         case .timeMachineSnapshots: return .brown
+        case .dartPubCache: return Color(red: 0.02, green: 0.61, blue: 0.84)
+        case .pipCache: return Color(red: 0.22, green: 0.49, blue: 0.72)
+        case .condaEnvs: return Color(red: 0.27, green: 0.55, blue: 0.31)
+        case .mavenCache: return Color(red: 0.75, green: 0.20, blue: 0.10)
+        case .jetBrainsCache: return Color(red: 0.90, green: 0.30, blue: 0.10)
+        case .huggingFaceCache: return Color(red: 0.95, green: 0.65, blue: 0.10)
+        case .dockerData: return Color(red: 0.10, green: 0.55, blue: 0.90)
+        case .swiftPackages: return .orange
+        case .rubyGemsCache: return Color(red: 0.75, green: 0.10, blue: 0.15)
+        case .unityCache: return Color(red: 0.20, green: 0.20, blue: 0.20)
         case .trash: return Color(red: 0.90, green: 0.25, blue: 0.25)
         }
     }
@@ -257,6 +306,26 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
             return "Safari, Chrome, Firefox, and Edge cache files"
         case .timeMachineSnapshots:
             return "Local Time Machine snapshots stored on this Mac"
+        case .dartPubCache:
+            return "Flutter and Dart pub package cache (~/.pub-cache)"
+        case .pipCache:
+            return "Python pip download cache"
+        case .condaEnvs:
+            return "Conda virtual environments (can be several GB each)"
+        case .mavenCache:
+            return "Maven local repository (~/.m2/repository)"
+        case .jetBrainsCache:
+            return "IntelliJ, Android Studio, PyCharm, and other JetBrains IDE caches"
+        case .huggingFaceCache:
+            return "Hugging Face model downloads (can be tens of GB)"
+        case .dockerData:
+            return "Docker Desktop virtual machine disk images"
+        case .swiftPackages:
+            return "Swift Package Manager resolved package cache"
+        case .rubyGemsCache:
+            return "Locally installed Ruby gems"
+        case .unityCache:
+            return "Unity Editor cache and project library files"
         case .trash:
             return "Files and folders waiting in your Trash"
         }
@@ -327,6 +396,49 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
             ]
         case .timeMachineSnapshots:
             return []
+
+        case .dartPubCache:
+            return ["\(homeDir)/.pub-cache"]
+        case .pipCache:
+            return [
+                "\(homeDir)/Library/Caches/pip",
+                "\(homeDir)/.cache/pip"
+            ]
+        case .condaEnvs:
+            return [
+                "\(homeDir)/opt/anaconda3/envs",
+                "\(homeDir)/opt/miniconda3/envs",
+                "\(homeDir)/miniconda3/envs",
+                "\(homeDir)/anaconda3/envs",
+                "\(homeDir)/.conda/envs"
+            ]
+        case .mavenCache:
+            return ["\(homeDir)/.m2/repository"]
+        case .jetBrainsCache:
+            return ["\(homeDir)/Library/Caches/JetBrains"]
+        case .huggingFaceCache:
+            return ["\(homeDir)/.cache/huggingface"]
+        case .dockerData:
+            return [
+                "\(homeDir)/Library/Containers/com.docker.docker/Data/vms",
+                "\(homeDir)/Library/Group Containers/group.com.docker/Data/vms"
+            ]
+        case .swiftPackages:
+            return [
+                "\(homeDir)/Library/Caches/org.swift.swiftpm",
+                "\(homeDir)/.swiftpm"
+            ]
+        case .rubyGemsCache:
+            return [
+                "\(homeDir)/.gem",
+                "\(homeDir)/Library/Ruby/Gems"
+            ]
+        case .unityCache:
+            return [
+                "\(homeDir)/Library/Unity",
+                "\(homeDir)/Library/Caches/com.unity3d.UnityEditor5.x",
+                "\(homeDir)/Library/Caches/com.unity3d.UnityEditor"
+            ]
 
         case .trash:
             // Path discovery is handled internally by scanTrashDirectories,

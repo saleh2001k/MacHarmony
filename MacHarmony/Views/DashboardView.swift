@@ -21,13 +21,26 @@ struct ChartEntry: Identifiable {
 struct DashboardView: View {
     @ObservedObject var storageManager: StorageManager
 
-    @State private var diskVisible   = false
-    @State private var heroVisible   = false
-    @State private var statsVisible  = false
-    @State private var chartVisible  = false
-    @State private var listVisible   = false
-    @State private var toolsVisible  = false
+    @State private var diskVisible:  Bool
+    @State private var heroVisible:  Bool
+    @State private var statsVisible: Bool
+    @State private var chartVisible: Bool
+    @State private var listVisible:  Bool
+    @State private var toolsVisible: Bool
     @State private var trashRefreshTask: Task<Void, Never>?
+
+    init(storageManager: StorageManager) {
+        self.storageManager = storageManager
+        // Start fully visible when results already exist so returning to the dashboard
+        // never re-runs the staggered fade-in animation (eliminates flicker on tab switch).
+        let alreadyLoaded = storageManager.hasResults
+        _diskVisible  = State(initialValue: alreadyLoaded)
+        _heroVisible  = State(initialValue: alreadyLoaded)
+        _statsVisible = State(initialValue: alreadyLoaded)
+        _chartVisible = State(initialValue: alreadyLoaded)
+        _listVisible  = State(initialValue: alreadyLoaded)
+        _toolsVisible = State(initialValue: alreadyLoaded)
+    }
 
     // MARK: Computed data
 
@@ -133,12 +146,16 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.backgroundPrimary)
         .onAppear {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.88))             { diskVisible  = true }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.07)) { heroVisible  = true }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.13)) { statsVisible = true }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.19)) { chartVisible = true }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.25)) { listVisible  = true }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.31)) { toolsVisible = true }
+            // Only run the staggered reveal animation on first load (when flags start hidden).
+            // If already visible (user returning from another tab), skip to avoid flicker.
+            if !diskVisible {
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88))             { diskVisible  = true }
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.07)) { heroVisible  = true }
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.13)) { statsVisible = true }
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.19)) { chartVisible = true }
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.25)) { listVisible  = true }
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88).delay(0.31)) { toolsVisible = true }
+            }
 
             trashRefreshTask?.cancel()
             trashRefreshTask = Task {
@@ -165,7 +182,8 @@ struct DashboardView: View {
                 .tracking(1.2)
                 .foregroundStyle(sectionHeaderColor)
 
-            DiskBarView(fraction: storageManager.usedPercentage)
+            DiskBarView(fraction: storageManager.usedPercentage,
+                        skipInitialAnimation: storageManager.hasResults)
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -391,7 +409,7 @@ struct DashboardView: View {
     // MARK: - Quick Tools Section
 
     private let featuredTools: [ToolType] = [
-        .largeFileBrowser, .appUninstaller, .emptyFolders,
+        .largeFileBrowser, .appUninstaller,
         .oldUnusedFiles, .diskHealth, .memoryMonitor
     ]
 
@@ -647,7 +665,12 @@ private struct QuickToolCard: View {
 
 private struct DiskBarView: View {
     let fraction: Double
-    @State private var animatedFraction: Double = 0
+    @State private var animatedFraction: Double
+
+    init(fraction: Double, skipInitialAnimation: Bool = false) {
+        self.fraction = fraction
+        _animatedFraction = State(initialValue: skipInitialAnimation ? fraction : 0)
+    }
 
     var body: some View {
         GeometryReader { geo in

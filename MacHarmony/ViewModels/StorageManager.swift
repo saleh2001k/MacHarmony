@@ -63,6 +63,11 @@ class StorageManager: ObservableObject {
         let stored = UserDefaults.standard.stringArray(forKey: "hiddenCategories") ?? []
         return Set(stored)
     }()
+    /// Which categories are included in a full scan. Empty set = all categories (default / backward-compatible).
+    @Published var enabledScanCategories: Set<String> = {
+        let stored = UserDefaults.standard.stringArray(forKey: "enabledScanCategories") ?? []
+        return Set(stored)
+    }()
     @Published var menuBarCategories: Set<String> = {
         let stored = UserDefaults.standard.stringArray(forKey: "menuBarCategories")
         if let stored, !stored.isEmpty { return Set(stored) }
@@ -182,16 +187,17 @@ class StorageManager: ObservableObject {
         customItems.removeAll()
         scanProgress = 0
         currentScanPath = ""
-        scanningCategories = Set(orderedCategories)
+        scanningCategories = Set(categoriesToScan)
 
-        // Invalidate all caches so every re-scan is fully fresh — no stale sizes, no leftover results.
+        // Invalidate the results cache (category item lists) so categories are rebuilt fresh.
+        // ScanCache (directory sizes) is intentionally kept — entries are validated by mtime via stat(),
+        // so unchanged directories are served from cache, speeding up repeated scans significantly.
         #if DEBUG
-        print("🗑️ [\(scanID)] Invalidating ScanCache + ResultsCache…")
+        print("🗑️ [\(scanID)] Invalidating ResultsCache (ScanCache preserved for mtime-validated hits)…")
         #endif
-        await scanner.invalidateCache()
         await resultsCache.invalidate()
         #if DEBUG
-        print("✅ [\(scanID)] Caches cleared — every size will be recalculated from disk")
+        print("✅ [\(scanID)] ResultsCache cleared — ScanCache will serve hits for unchanged directories")
         #endif
 
         // Configure scanner with current user preferences
@@ -226,9 +232,9 @@ class StorageManager: ObservableObject {
         print("📇 [\(scanID)] FileIndex ready — \(indexedFileCount) files in \(Self.elapsed(since: indexStart))")
         #endif
 
-        let categories = orderedCategories
+        let categories = categoriesToScan
         #if DEBUG
-        print("🚀 [\(scanID)] Scanning \(categories.count) categories in parallel…")
+        print("🚀 [\(scanID)] Scanning \(categories.count) of \(orderedCategories.count) categories in parallel…")
         #endif
         let categoriesStart = Date()
 
@@ -538,11 +544,52 @@ class StorageManager: ObservableObject {
     // MARK: - Category Visibility
 
     var visibleCategories: [StorageCategory] {
-        orderedCategories.filter { !hiddenCategories.contains($0.rawValue) }
+        let base = orderedCategories.filter { !hiddenCategories.contains($0.rawValue) }
+        guard !enabledScanCategories.isEmpty else { return base }
+        return base.filter { enabledScanCategories.contains($0.rawValue) }
     }
 
     var menuBarVisibleCategories: [StorageCategory] {
         orderedCategories.filter { menuBarCategories.contains($0.rawValue) }
+    }
+
+    /// Categories that will actually be scanned on the next full scan.
+    /// Respects `enabledScanCategories` — empty set means all categories.
+    var categoriesToScan: [StorageCategory] {
+        guard !enabledScanCategories.isEmpty else { return orderedCategories }
+        return orderedCategories.filter { enabledScanCategories.contains($0.rawValue) }
+    }
+
+    func isCategoryEnabled(_ category: StorageCategory) -> Bool {
+        enabledScanCategories.isEmpty || enabledScanCategories.contains(category.rawValue)
+    }
+
+    func setEnabledCategories(_ rawValues: Set<String>) {
+        enabledScanCategories = rawValues
+        UserDefaults.standard.set(Array(rawValues), forKey: "enabledScanCategories")
+    }
+
+    func toggleCategoryEnabled(_ category: StorageCategory) {
+        if enabledScanCategories.isEmpty {
+            // Expand from "all" to "all minus this one"
+            enabledScanCategories = Set(StorageCategory.allCases.map(\.rawValue))
+        }
+        if enabledScanCategories.contains(category.rawValue) {
+            enabledScanCategories.remove(category.rawValue)
+        } else {
+            enabledScanCategories.insert(category.rawValue)
+        }
+        // Collapse back to "all" if every category is re-enabled
+        if enabledScanCategories.count == StorageCategory.allCases.count {
+            enabledScanCategories = Set()
+        }
+        UserDefaults.standard.set(Array(enabledScanCategories), forKey: "enabledScanCategories")
+    }
+
+    /// Re-reads `enabledScanCategories` from UserDefaults — call after onboarding writes it.
+    func syncEnabledCategoriesFromDefaults() {
+        let stored = UserDefaults.standard.stringArray(forKey: "enabledScanCategories") ?? []
+        enabledScanCategories = Set(stored)
     }
 
     var orderedCategories: [StorageCategory] {
