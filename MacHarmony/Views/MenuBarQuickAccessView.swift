@@ -464,7 +464,6 @@ private struct MenuBarActions: View {
                 .accessibilityLabel("Open MacHarmony main window")
 
                 Button(role: .destructive) {
-                    (NSApp.delegate as? AppDelegate)?.isExplicitQuit = true
                     NSApp.terminate(nil)
                 } label: {
                     HStack {

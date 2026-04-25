@@ -20,9 +20,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    // When true, the next applicationShouldTerminate call actually quits
-    var isExplicitQuit = false
-
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
 
@@ -76,10 +73,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if isExplicitQuit { return .terminateNow }
-        // Cmd+Q: hide all main windows, keep running in the menu bar
-        hideAllMainWindows()
-        return .terminateCancel
+        // Quit should fully terminate the app (including menu bar status item).
+        .terminateNow
     }
 
     // MARK: - Deep Link
@@ -114,14 +109,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
               win.styleMask.contains(.titled), !(win is NSPanel) else { return }
         win.delegate = self
         NSApp.setActivationPolicy(.regular)
-    }
-
-    private func hideAllMainWindows() {
-        NSApp.windows.forEach { win in
-            guard win.styleMask.contains(.titled), !(win is NSPanel) else { return }
-            win.orderOut(nil)
-        }
-        NSApp.setActivationPolicy(.accessory)
     }
 
     func openMainWindow() {

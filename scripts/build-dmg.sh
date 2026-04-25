@@ -13,6 +13,7 @@ WEBSITE_DOWNLOADS="$(dirname "$PROJECT_ROOT")/macharmony-website/public/download
 mkdir -p "$WEBSITE_DOWNLOADS"
 OUTPUT_DMG="$WEBSITE_DOWNLOADS/MacHarmony.dmg"
 ICON="$PROJECT_ROOT/MacHarmony/Assets.xcassets/AppIcon.appiconset/512.png"
+VOLUME_NAME="${DMG_VOLUME_NAME:-MacHarmony Installer}"
 
 # Treat docs placeholder as invalid input and auto-detect instead.
 if [ "$APP_PATH" = "/path/to/exported/MacHarmony.app" ]; then
@@ -64,8 +65,8 @@ mkdir -p "$STAGING_DIR"
 cp -r "$APP_PATH" "$STAGING_DIR/"
 
 echo "📦 Building DMG from $APP_PATH..."
-create-dmg \
-  --volname "MacHarmony" \
+if ! create-dmg \
+  --volname "$VOLUME_NAME" \
   --volicon "$ICON" \
   --window-pos 200 120 \
   --window-size 560 380 \
@@ -75,7 +76,14 @@ create-dmg \
   --app-drop-link 400 185 \
   --hdiutil-retries 10 \
   "$OUTPUT_DMG" \
-  "$STAGING_DIR"
+  "$STAGING_DIR"; then
+  echo "⚠️ create-dmg failed; falling back to hdiutil build."
+  TMP_RW="$WEBSITE_DOWNLOADS/rw.fallback.MacHarmony.dmg"
+  rm -f "$TMP_RW"
+  hdiutil create -volname "$VOLUME_NAME" -srcfolder "$STAGING_DIR" -ov -format UDRW "$TMP_RW"
+  hdiutil convert "$TMP_RW" -format UDZO -imagekey zlib-level=9 -o "$OUTPUT_DMG"
+  rm -f "$TMP_RW"
+fi
 
 # Clean up staging
 rm -rf "$STAGING_DIR"
