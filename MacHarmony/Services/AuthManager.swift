@@ -76,7 +76,6 @@ enum MacHarmonySite {
     static var loginBaseURL: String { "\(origin)/app-login" }
     static var transferURL: URL { URL(string: "\(origin)/transfer")! }
     static var purchaseURL: URL { URL(string: "\(origin)/purchase")! }
-    static var trialURL: URL { URL(string: "\(origin)/trial")! }
 }
 
 // MARK: - AuthManager

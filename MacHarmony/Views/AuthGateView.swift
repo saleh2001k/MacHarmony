@@ -203,13 +203,6 @@ struct AuthGateView: View {
             VStack(spacing: 5) {
                 Spacer().frame(height: 8)
                 Button {
-                    NSWorkspace.shared.open(MacHarmonySite.trialURL)
-                } label: {
-                    Text("New here? Start your free trial →")
-                        .font(.system(size: 11)).foregroundStyle(subtle).underline()
-                }
-                .buttonStyle(.plain)
-                Button {
                     NSWorkspace.shared.open(MacHarmonySite.purchaseURL)
                 } label: {
                     Text("Buy MacHarmony — $29.99")
