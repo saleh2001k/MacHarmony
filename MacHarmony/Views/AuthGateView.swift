@@ -43,7 +43,10 @@ struct AuthGatedView: View {
         case .unknown, .validating:
             LoadingView()
 
-        case .unauthenticated, .authenticating, .expired, .deviceConflict:
+        case .authSuccess:
+            AuthSuccessView()
+
+        case .unauthenticated, .authenticating, .waitingForBrowser, .expired, .deviceConflict:
             AuthGateView()
         }
     }
@@ -71,7 +74,6 @@ private struct LoadingView: View {
 struct AuthGateView: View {
     @EnvironmentObject var authManager: AuthManager
     @State private var appeared = false
-    @State private var showNativeLogin = false
 
     var body: some View {
         ZStack {
@@ -87,22 +89,9 @@ struct AuthGateView: View {
             .opacity(appeared ? 1 : 0)
             .animation(.easeOut(duration: 1.2), value: appeared)
 
-            if showNativeLogin {
-                NativeLoginView(onBack: { showNativeLogin = false })
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    ))
-            } else {
-                mainGateContent
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .leading).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    ))
-            }
+            mainGateContent
         }
         .frame(minWidth: 500, minHeight: 420)
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: showNativeLogin)
         .onAppear { appeared = true }
     }
 
@@ -155,8 +144,8 @@ struct AuthGateView: View {
         switch authManager.state {
         case .unauthenticated:
             Text("Sign in to access MacHarmony.")
-        case .authenticating:
-            Text("Check your email and click the sign-in link.\nKeep this window open.")
+        case .authenticating, .waitingForBrowser:
+            Text("Complete sign-in in your browser.\nThis window will activate automatically.")
         case .expired:
             Text("You've been offline for over 7 days.\nSign in to continue.")
         case .deviceConflict:
@@ -170,23 +159,24 @@ struct AuthGateView: View {
     private var primaryButton: some View {
         switch authManager.state {
         case .unauthenticated, .expired:
-            VStack(spacing: 10) {
-                AuthButton(title: "Sign In to MacHarmony →") {
-                    showNativeLogin = true
-                }
-                Button("Open Browser Instead") {
-                    authManager.openBrowserForLogin()
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 11))
-                .foregroundStyle(subtle)
+            AuthButton(title: "Sign In to MacHarmony →") {
+                authManager.openBrowserForLogin()
             }
 
-        case .authenticating:
-            HStack(spacing: 8) {
-                ProgressView().scaleEffect(0.7).tint(green)
-                Text("Waiting for email sign-in…")
-                    .font(.system(size: 13)).foregroundStyle(muted)
+        case .authenticating, .waitingForBrowser:
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    ProgressView().scaleEffect(0.7).tint(green)
+                    Text("Waiting for browser sign-in…")
+                        .font(.system(size: 13)).foregroundStyle(muted)
+                }
+                Button("Cancel") {
+                    authManager.stopPolling()
+                    authManager.state = .unauthenticated
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12))
+                .foregroundStyle(subtle)
             }
 
         case .deviceConflict:
@@ -195,7 +185,7 @@ struct AuthGateView: View {
                     NSWorkspace.shared.open(MacHarmonySite.transferURL)
                 }
                 Button("Use a different account") {
-                    showNativeLogin = true
+                    authManager.signOut()
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 12))
@@ -231,164 +221,25 @@ struct AuthGateView: View {
     }
 }
 
-// MARK: - NativeLoginView
+// MARK: - Auth Success View
 
-private struct NativeLoginView: View {
-    @EnvironmentObject var authManager: AuthManager
-    let onBack: () -> Void
-
-    @State private var email = ""
-    @State private var password = ""
-    @State private var loading = false
-    @State private var errorMsg = ""
-    @State private var showTrialOffer = false
-
+private struct AuthSuccessView: View {
     var body: some View {
-        VStack(spacing: 0) {
-            // Back button
-            HStack {
-                Button(action: { authManager.stopPolling(); onBack() }) {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(muted)
-                }
-                .buttonStyle(.plain)
-                Spacer()
-            }
-            .padding(.bottom, 20)
-
-            Text("Sign In to MacHarmony")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.bottom, 4)
-
-            Text("Enter your email and password.")
-                .font(.system(size: 13)).foregroundStyle(muted).padding(.bottom, 24)
-
-            loginForm
-        }
-        .padding(40)
-        .frame(maxWidth: 380)
-    }
-
-    // ── Login Form ────────────────────────────────────────────────────────────
-
-    private var loginForm: some View {
-        VStack(spacing: 0) {
-            emailField("your@email.com")
-            NativeSecureField(placeholder: "Password", text: $password)
-                .padding(.bottom, 14)
-
-            // Error state
-            if !errorMsg.isEmpty && !showTrialOffer {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red.opacity(0.85))
-                    Text(errorMsg)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red.opacity(0.85))
-                    Spacer()
-                }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.red.opacity(0.18), lineWidth: 1)
-                }
-                .padding(.bottom, 12)
-            }
-
-            if showTrialOffer {
-                VStack(spacing: 10) {
-                    Text("No license found for this account.")
-                        .font(.system(size: 12)).foregroundStyle(muted)
-                        .multilineTextAlignment(.center)
-
-                    AuthButton(title: loading ? "Starting Trial…" : "Start Free Trial →", disabled: loading) {
-                        guard !loading else { return }
-                        loading = true
-                        Task {
-                            let (_, code) = await authManager.startTrial(email: email)
-                            if let code = code {
-                                switch code {
-                                case "ALREADY_PURCHASED":
-                                    showTrialOffer = false
-                                    errorMsg = "You already have a license. Try signing in again."
-                                case "TRIAL_EXPIRED":
-                                    break
-                                default:
-                                    errorMsg = "Something went wrong. Please try again."
-                                    showTrialOffer = false
-                                }
-                            }
-                            loading = false
-                        }
-                    }
-
-                    Button("Buy a license instead") {
-                        NSWorkspace.shared.open(MacHarmonySite.purchaseURL)
-                    }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11))
-                    .foregroundStyle(subtle)
-                    .padding(.bottom, 4)
-                }
-            } else {
-                AuthButton(title: loading ? "Signing In…" : "Sign In →", disabled: loading) {
-                    guard !loading, email.contains("@"), !password.isEmpty else {
-                        errorMsg = "Enter your email and password."
-                        return
-                    }
-                    loading = true
-                    errorMsg = ""
-                    showTrialOffer = false
-                    Task {
-                        let code = await authManager.signInWithPassword(email: email, password: password)
-                        if code == "NO_LICENSE" {
-                            showTrialOffer = true
-                        } else if code != nil {
-                            errorMsg = "Incorrect email or password."
-                        }
-                        loading = false
-                    }
-                }
-
-                VStack(spacing: 5) {
-                    Spacer().frame(height: 4)
-                    Button {
-                        NSWorkspace.shared.open(MacHarmonySite.trialURL)
-                    } label: {
-                        Text("Start free trial")
-                            .font(.system(size: 11)).foregroundStyle(subtle).underline()
-                    }
-                    .buttonStyle(.plain)
-                    Button {
-                        NSWorkspace.shared.open(MacHarmonySite.purchaseURL)
-                    } label: {
-                        Text("Buy MacHarmony — $29.99")
-                            .font(.system(size: 11)).foregroundStyle(subtle).underline()
-                    }
-                    .buttonStyle(.plain)
-                }
+        ZStack {
+            bg.ignoresSafeArea()
+            VStack(spacing: 16) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 52))
+                    .foregroundStyle(green)
+                Text("You're signed in!")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+                Text("MacHarmony is now active.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(muted)
             }
         }
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private func emailField(_ placeholder: String) -> some View {
-        TextField(placeholder, text: $email)
-            .textFieldStyle(.plain)
-            .font(.system(size: 13))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(surf, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(Color.white.opacity(0.09), lineWidth: 1)
-            }
-            .padding(.bottom, 10)
+        .frame(minWidth: 500, minHeight: 420)
     }
 }
 
@@ -562,21 +413,3 @@ struct AuthButton: View {
     }
 }
 
-private struct NativeSecureField: View {
-    let placeholder: String
-    @Binding var text: String
-
-    var body: some View {
-        SecureField(placeholder, text: $text)
-            .textFieldStyle(.plain)
-            .font(.system(size: 13))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(surf, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(Color.white.opacity(0.09), lineWidth: 1)
-            }
-            .padding(.bottom, 10)
-    }
-}

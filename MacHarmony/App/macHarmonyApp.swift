@@ -7,72 +7,136 @@ import SwiftUI
 import AppKit
 
 // Keeps the app alive after the last window closes.
-// Dynamically shows/hides the Dock icon based on whether the main window is open.
-class AppDelegate: NSObject, NSApplicationDelegate {
+// Dynamically shows/hides the Dock icon based on whether the main window is visible.
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
-    // Injected by MacHarmonyApp so deep links can reach AuthManager
     var authManager: AuthManager?
 
+    // Set by MacHarmonyApp.body once the StateObject is ready
+    var storageManager: StorageManager? {
+        didSet {
+            guard let sm = storageManager, statusItem == nil else { return }
+            setupStatusItem(storageManager: sm)
+        }
+    }
+
+    // When true, the next applicationShouldTerminate call actually quits
+    var isExplicitQuit = false
+
+    private var statusItem: NSStatusItem?
+    private var popover: NSPopover?
+
+    // MARK: - Launch
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Start hidden from the Dock — run as a menu-bar-only app by default
         NSApp.setActivationPolicy(.accessory)
 
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(windowDidBecomeKey(_:)),
+            selector: #selector(handleWindowBecameKey(_:)),
             name: NSWindow.didBecomeKeyNotification,
             object: nil
         )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(windowWillClose(_:)),
-            name: NSWindow.willCloseNotification,
-            object: nil
-        )
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        false
+    // MARK: - Menu Bar Status Item
+
+    func setupStatusItem(storageManager: StorageManager) {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+
+        if let button = statusItem?.button {
+            button.image = NSImage(named: "MenuBarIcon")
+            button.image?.isTemplate = true
+            button.action = #selector(toggleMenuBarPopover(_:))
+            button.target = self
+        }
+
+        let hosting = NSHostingController(
+            rootView: MenuBarQuickAccessView().environmentObject(storageManager)
+        )
+        hosting.sizingOptions = .intrinsicContentSize
+
+        let p = NSPopover()
+        p.behavior = .transient
+        p.contentViewController = hosting
+        self.popover = p
     }
+
+    @objc func toggleMenuBarPopover(_ sender: AnyObject?) {
+        guard let popover else { return }
+        if popover.isShown {
+            popover.performClose(sender)
+        } else if let button = statusItem?.button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+    }
+
+    // MARK: - Terminate / Quit
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // Cmd+Q / right-click Quit → just close the main window, keep running in menu bar
-        NSApp.windows.forEach { $0.close() }
+        if isExplicitQuit { return .terminateNow }
+        // Cmd+Q: hide all main windows, keep running in the menu bar
+        hideAllMainWindows()
         return .terminateCancel
     }
 
-    // Handle macharmony://auth?token=<x> deep links from the browser
+    // MARK: - Deep Link
+
     func application(_ application: NSApplication, open urls: [URL]) {
         guard let url = urls.first,
               url.scheme == "macharmony",
               url.host == "auth"
         else { return }
 
-        // Bring the window to front
         NSApp.activate(ignoringOtherApps: true)
-
         Task { @MainActor in
             await authManager?.handleDeepLink(url)
         }
     }
 
-    // A regular titled window gained focus → show in Dock
-    @objc private func windowDidBecomeKey(_ note: Notification) {
+    // MARK: - Window Delegate
+
+    // Intercept titled-window close so we hide instead of destroy.
+    // This ensures "Open" in the menu bar popover can always bring the window back.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard sender.styleMask.contains(.titled), !(sender is NSPanel) else { return true }
+        sender.orderOut(nil)
+        DispatchQueue.main.async { self.updateDockVisibility() }
+        return false
+    }
+
+    // MARK: - Helpers
+
+    @objc private func handleWindowBecameKey(_ note: Notification) {
         guard let win = note.object as? NSWindow,
               win.styleMask.contains(.titled), !(win is NSPanel) else { return }
+        win.delegate = self
         NSApp.setActivationPolicy(.regular)
     }
 
-    // A window closed → if no more titled windows remain, hide from Dock
-    @objc private func windowWillClose(_ note: Notification) {
-        DispatchQueue.main.async {
-            let hasVisibleWindow = NSApp.windows.contains {
-                $0.isVisible && $0.styleMask.contains(.titled) && !($0 is NSPanel)
-            }
-            if !hasVisibleWindow {
-                NSApp.setActivationPolicy(.accessory)
-            }
+    private func hideAllMainWindows() {
+        NSApp.windows.forEach { win in
+            guard win.styleMask.contains(.titled), !(win is NSPanel) else { return }
+            win.orderOut(nil)
         }
+        NSApp.setActivationPolicy(.accessory)
+    }
+
+    func openMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let win = NSApp.windows.first(where: { $0.styleMask.contains(.titled) && !($0 is NSPanel) }) {
+            win.makeKeyAndOrderFront(nil)
+        }
+        updateDockVisibility()
+    }
+
+    private func updateDockVisibility() {
+        let hasVisible = NSApp.windows.contains {
+            $0.isVisible && $0.styleMask.contains(.titled) && !($0 is NSPanel)
+        }
+        NSApp.setActivationPolicy(hasVisible ? .regular : .accessory)
     }
 }
 
@@ -97,13 +161,11 @@ struct MacHarmonyApp: App {
                 .environmentObject(authManager)
                 .preferredColorScheme(useDarkMode ? .dark : .light)
                 .task {
-                    // Give AppDelegate a reference so deep links reach AuthManager
                     appDelegate.authManager = authManager
+                    appDelegate.storageManager = storageManager
 
-                    // Validate license on every launch
                     await authManager.validateOnLaunch()
 
-                    // Background tasks run for all active users (paid, trial, offline grace)
                     switch authManager.state {
                     case .authenticated, .offlineGrace, .trial:
                         storageManager.scheduleAutoScanIfNeeded()
@@ -121,15 +183,6 @@ struct MacHarmonyApp: App {
                 .keyboardShortcut("?", modifiers: .command)
             }
         }
-
-        MenuBarExtra {
-            MenuBarQuickAccessView()
-                .environmentObject(storageManager)
-        } label: {
-            Image("MenuBarIcon")
-                .renderingMode(.template)
-        }
-        .menuBarExtraStyle(.window)
 
         WindowGroup(id: "about") {
             AboutView()

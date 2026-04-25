@@ -3,9 +3,8 @@
 //  MacHarmony
 //
 //  Manages license authentication.
-//  Supports two flows:
-//    1. Browser-based: opens macharmony.com/app-login in Safari, polls for token
-//    2. Native: magic link or password directly in-app (no browser required)
+//  Sign-in flow: opens macharmony.com/app-login in Safari, polls for one-time token.
+//  Token is delivered via deep link (macharmony://auth?token=...) or polling fallback.
 //  Stores auth state in Keychain (survives reinstall, encrypted).
 //  Validates auth on every launch; applies 7-day offline grace period.
 //  Trial users get full access for 3 days; paywall shown on expiry.
@@ -22,9 +21,11 @@ import AppKit
 enum AuthState: Equatable {
     case unknown              // checking Keychain on startup
     case unauthenticated      // no stored auth — show sign-in screen
-    case authenticating       // waiting for email link click
+    case authenticating       // waiting for email link click (legacy, kept for Equatable coverage)
+    case waitingForBrowser    // opened Safari, polling for deep-link token
     case validating           // calling validate-session or exchanging token
     case authenticated        // paid license valid
+    case authSuccess          // brief success screen before transitioning to authenticated/trial
     case trial(daysLeft: Int) // active trial — show trial banner
     case trialExpired         // trial over — show paywall
     case offlineGrace(Int)    // server unreachable, N grace days remaining
@@ -68,25 +69,6 @@ private struct PollResponse: Decodable {
     let trialEndsAt: String?
 }
 
-private struct PasswordSignInResponse: Decodable {
-    let access_token: String?
-    let error_description: String?
-    let error: String?
-}
-
-private struct CreateAppTokenResponse: Decodable {
-    let token: String?
-    let error: String?
-    let code: String?
-}
-
-private struct CreateTrialResponse: Decodable {
-    let success: Bool?
-    let resent: Bool?
-    let error: String?
-    let code: String?
-}
-
 // MARK: - Website URLs
 
 enum MacHarmonySite {
@@ -105,8 +87,6 @@ final class AuthManager: ObservableObject {
     @Published var state: AuthState = .unknown
 
     // ── Configuration ─────────────────────────────────────────────────────────
-    private let supabaseURL        = "https://pjrmiyopkqzammvjcevo.supabase.co"
-    private let supabaseAnonKey    = "sb_publishable_Ms0af_zvPwX64QCtbEv1aw_r00241Hu"
     private let edgeFunctionBase   = "https://pjrmiyopkqzammvjcevo.supabase.co/functions/v1"
     private let gracePeriodDays    = 7
 
@@ -154,102 +134,8 @@ final class AuthManager: ObservableObject {
         ]
         guard let url = components.url else { return }
         NSWorkspace.shared.open(url)
-        state = .authenticating
+        state = .waitingForBrowser
         startPolling(deviceId: fingerprint)
-    }
-
-    // MARK: - Native Login: Password
-    // Returns nil on success, or an error code string on failure.
-
-    func signInWithPassword(email: String, password: String) async -> String? {
-        guard let deviceId = deviceFingerprint() else {
-            state = .unauthenticated
-            return "NO_DEVICE"
-        }
-        state = .validating
-
-        do {
-            // 1. Authenticate via Supabase password
-            let signIn = try await callPasswordSignIn(email: email, password: password)
-            guard let accessToken = signIn.access_token else {
-                state = .unauthenticated
-                return "WRONG_PASSWORD"
-            }
-
-            // 2. Create an app token (validates license, handles trial expiry check)
-            let appTokenResult = try await callCreateAppToken(
-                accessToken: accessToken,
-                deviceId: deviceId
-            )
-
-            if let code = appTokenResult.code {
-                switch code {
-                case "TRIAL_EXPIRED":   state = .trialExpired;    return "TRIAL_EXPIRED"
-                case "NO_LICENSE":      state = .unauthenticated; return "NO_LICENSE"
-                case "DEVICE_CONFLICT": state = .deviceConflict;  return "DEVICE_CONFLICT"
-                default:                state = .unauthenticated; return code
-                }
-            }
-            guard appTokenResult.token != nil else {
-                state = .unauthenticated
-                return "UNKNOWN_ERROR"
-            }
-
-            // 3. Consume the token via poll to get full license info (trial vs paid)
-            let poll = try await callPollAppToken(deviceId: deviceId)
-            if let email = poll.email, poll.success == true {
-                handlePollSuccess(email: email, deviceId: deviceId, poll: poll)
-                return nil
-            } else {
-                state = .unauthenticated
-                return poll.code ?? "UNKNOWN_ERROR"
-            }
-        } catch {
-            state = .unauthenticated
-            return "NETWORK_ERROR"
-        }
-    }
-
-    // MARK: - Native Login: Magic Link (existing user)
-
-    func sendMagicLink(email: String) async {
-        guard let deviceId = deviceFingerprint() else {
-            state = .unauthenticated
-            return
-        }
-        state = .validating
-
-        do {
-            try await callSendOtp(email: email, deviceId: deviceId)
-            state = .authenticating
-            startPolling(deviceId: deviceId)
-        } catch {
-            state = .unauthenticated
-        }
-    }
-
-    // MARK: - Native Login: Start Trial
-
-    func startTrial(email: String) async -> (success: Bool, errorCode: String?) {
-        guard let deviceId = deviceFingerprint() else {
-            return (false, "NO_DEVICE")
-        }
-        state = .validating
-
-        do {
-            let result = try await callCreateTrial(email: email, deviceId: deviceId)
-            if result.success == true || result.resent == true {
-                state = .authenticating
-                startPolling(deviceId: deviceId)
-                return (true, nil)
-            } else {
-                state = .unauthenticated
-                return (false, result.code)
-            }
-        } catch {
-            state = .unauthenticated
-            return (false, "NETWORK_ERROR")
-        }
     }
 
     // MARK: - Poll for token
@@ -305,11 +191,17 @@ final class AuthManager: ObservableObject {
         )
         saveAuthRecord(record)
 
+        let finalState: AuthState
         if licenseType == "trial", let ends = trialEndsAt {
             let daysLeft = max(0, Calendar.current.dateComponents([.day], from: Date(), to: ends).day ?? 0)
-            state = .trial(daysLeft: daysLeft)
+            finalState = .trial(daysLeft: daysLeft)
         } else {
-            state = .authenticated
+            finalState = .authenticated
+        }
+        state = .authSuccess
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            state = finalState
         }
     }
 
@@ -329,7 +221,7 @@ final class AuthManager: ObservableObject {
         else { return }
 
         switch state {
-        case .authenticated, .offlineGrace, .trial:
+        case .authenticated, .offlineGrace, .trial, .authSuccess:
             stopPolling()
             return
         default:
@@ -350,7 +242,11 @@ final class AuthManager: ObservableObject {
                     trialEndsAt: nil
                 )
                 saveAuthRecord(record)
-                state = .authenticated
+                state = .authSuccess
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    state = .authenticated
+                }
             } else if result.code == "DEVICE_CONFLICT" {
                 state = .deviceConflict
             } else {
@@ -520,61 +416,4 @@ final class AuthManager: ObservableObject {
         return try JSONDecoder().decode(ValidateResponse.self, from: data)
     }
 
-    private func callPasswordSignIn(email: String, password: String) async throws -> PasswordSignInResponse {
-        let url = URL(string: "\(supabaseURL)/auth/v1/token?grant_type=password")!
-        var req = URLRequest(url: url, timeoutInterval: 15)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
-        req.httpBody = try JSONEncoder().encode(["email": email, "password": password])
-        let (data, _) = try await URLSession.shared.data(for: req)
-        return try JSONDecoder().decode(PasswordSignInResponse.self, from: data)
-    }
-
-    private func callSendOtp(email: String, deviceId: String) async throws {
-        let deviceName = deviceDisplayName()
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Unknown%20Mac"
-        let encodedDeviceId = deviceId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? deviceId
-        let redirectTo = "\(MacHarmonySite.origin)/app-login/callback?device_id=\(encodedDeviceId)&device_name=\(deviceName)"
-
-        let url = URL(string: "\(supabaseURL)/auth/v1/otp")!
-        var req = URLRequest(url: url, timeoutInterval: 15)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
-        let body: [String: Any] = [
-            "email": email,
-            "create_user": false,
-            "options": ["redirect_to": redirectTo]
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        _ = try await URLSession.shared.data(for: req)
-    }
-
-    private func callCreateAppToken(accessToken: String, deviceId: String) async throws -> CreateAppTokenResponse {
-        let url = URL(string: "\(edgeFunctionBase)/create-app-token")!
-        var req = URLRequest(url: url, timeoutInterval: 15)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let body: [String: String] = ["device_id": deviceId, "device_name": deviceDisplayName()]
-        req.httpBody = try JSONEncoder().encode(body)
-        let (data, _) = try await URLSession.shared.data(for: req)
-        return try JSONDecoder().decode(CreateAppTokenResponse.self, from: data)
-    }
-
-    private func callCreateTrial(email: String, deviceId: String) async throws -> CreateTrialResponse {
-        let url = URL(string: "\(edgeFunctionBase)/create-trial")!
-        var req = URLRequest(url: url, timeoutInterval: 15)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: String] = [
-            "email": email,
-            "device_id": deviceId,
-            "device_name": deviceDisplayName()
-        ]
-        req.httpBody = try JSONEncoder().encode(body)
-        let (data, _) = try await URLSession.shared.data(for: req)
-        return try JSONDecoder().decode(CreateTrialResponse.self, from: data)
-    }
 }

@@ -406,8 +406,6 @@ private struct MenuBarXcodeSection: View {
 
 private struct MenuBarActions: View {
     @ObservedObject var storageManager: StorageManager
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
     @AppStorage("settingsSelectedTab") private var settingsSelectedTab = "general"
 
     var body: some View {
@@ -436,7 +434,11 @@ private struct MenuBarActions: View {
 
             Button {
                 settingsSelectedTab = "menubar"
-                openSettings()
+                if #available(macOS 14, *) {
+                    NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: nil)
+                } else {
+                    NSApp.sendAction(Selector("showPreferencesWindow:"), to: nil, from: nil)
+                }
                 NSApp.activate(ignoringOtherApps: true)
             } label: {
                 HStack {
@@ -450,8 +452,7 @@ private struct MenuBarActions: View {
 
             HStack(spacing: 6) {
                 Button {
-                    openWindow(id: "main")
-                    NSApp.activate(ignoringOtherApps: true)
+                    (NSApp.delegate as? AppDelegate)?.openMainWindow()
                 } label: {
                     HStack {
                         Image(systemName: "macwindow")
@@ -463,6 +464,7 @@ private struct MenuBarActions: View {
                 .accessibilityLabel("Open MacHarmony main window")
 
                 Button(role: .destructive) {
+                    (NSApp.delegate as? AppDelegate)?.isExplicitQuit = true
                     NSApp.terminate(nil)
                 } label: {
                     HStack {
