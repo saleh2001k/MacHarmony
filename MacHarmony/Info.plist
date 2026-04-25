@@ -20,9 +20,8 @@
   <key>SUFeedURL</key>
   <string>https://macharmony.com/appcast.xml</string>
 
-  <!-- REPLACE with your actual EdDSA public key after running Sparkle's generate_keys tool -->
   <key>SUPublicEDKey</key>
-  <string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+  <string>Xx6aCK4URJ5bOO4ZJW9TtLh99nGYYlEBV4zv6MpV3+U=</string>
 
   <key>SUEnableAutomaticChecks</key>
   <true/>
