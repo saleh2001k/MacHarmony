@@ -15,16 +15,12 @@ struct AboutView: View {
 
     enum AboutSection: String, CaseIterable {
         case about       = "About"
-        case reportBug   = "Report a Bug"
-        case suggest     = "Suggest a Feature"
         case contact     = "Contact Us"
         case privacy     = "Privacy Policy"
 
         var icon: String {
             switch self {
             case .about:     return "info.circle.fill"
-            case .reportBug: return "ant.fill"
-            case .suggest:   return "lightbulb.fill"
             case .contact:   return "envelope.fill"
             case .privacy:   return "lock.shield.fill"
             }
@@ -33,8 +29,6 @@ struct AboutView: View {
         var color: Color {
             switch self {
             case .about:     return Theme.accentGreen
-            case .reportBug: return .red
-            case .suggest:   return .orange
             case .contact:   return .blue
             case .privacy:   return .purple
             }
@@ -102,8 +96,6 @@ struct AboutView: View {
             Group {
                 switch selectedSection {
                 case .about:     AboutSection_About()
-                case .reportBug: AboutSection_ReportBug()
-                case .suggest:   AboutSection_Suggest()
                 case .contact:   AboutSection_Contact(selectedSection: $selectedSection)
                 case .privacy:   AboutSection_Privacy()
                 }
@@ -205,155 +197,6 @@ private struct AboutSection_About: View {
     }
 }
 
-// MARK: - Report Bug Section
-
-private struct AboutSection_ReportBug: View {
-    @State private var title = ""
-    @State private var steps = ""
-    @State private var expected = ""
-    @State private var actual = ""
-    @State private var submitting = false
-    @State private var submitted = false
-    @State private var errorMsg = ""
-
-    private var isValid: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                AboutSectionHeader(
-                    icon: "ant.fill",
-                    color: .red,
-                    title: "Report a Bug",
-                    subtitle: "Help us improve by describing what went wrong"
-                )
-
-                if submitted {
-                    AboutSubmittedState(
-                        icon: "checkmark.circle.fill",
-                        color: .green,
-                        message: "Thanks for the report! We'll look into it."
-                    )
-                } else {
-                    VStack(alignment: .leading, spacing: 14) {
-                        AboutFormField(label: "Bug Title *", placeholder: "Short description of the issue", text: $title)
-                        AboutFormArea(label: "Steps to Reproduce", placeholder: "1. Open the app\n2. Press Scan\n3. ...", text: $steps)
-                        AboutFormArea(label: "Expected Behavior", placeholder: "What should have happened?", text: $expected)
-                        AboutFormArea(label: "Actual Behavior", placeholder: "What actually happened?", text: $actual)
-                    }
-
-                    if !errorMsg.isEmpty {
-                        Text(errorMsg)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-
-                    HStack {
-                        Spacer()
-                        Button(submitting ? "Submitting…" : "Submit Report") {
-                            Task { await submit() }
-                        }
-                        .buttonStyle(ThemePrimaryButton(color: .red))
-                        .disabled(!isValid || submitting)
-                    }
-                }
-            }
-            .padding(28)
-        }
-    }
-
-    private func submit() async {
-        submitting = true
-        errorMsg = ""
-        let message = """
-            Bug: \(title)
-
-            Steps to Reproduce:
-            \(steps.isEmpty ? "Not provided" : steps)
-
-            Expected:
-            \(expected.isEmpty ? "Not provided" : expected)
-
-            Actual:
-            \(actual.isEmpty ? "Not provided" : actual)
-            """
-        let err = await submitFeedback(
-            type: "bug",
-            subject: "[Bug] \(title)",
-            message: message
-        )
-        submitting = false
-        if let err { errorMsg = err } else { submitted = true }
-    }
-}
-
-// MARK: - Suggest Feature Section
-
-private struct AboutSection_Suggest: View {
-    @State private var feature = ""
-    @State private var reason = ""
-    @State private var submitting = false
-    @State private var submitted = false
-    @State private var errorMsg = ""
-
-    private var isValid: Bool { !feature.trimmingCharacters(in: .whitespaces).isEmpty }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                AboutSectionHeader(
-                    icon: "lightbulb.fill",
-                    color: .orange,
-                    title: "Suggest a Feature",
-                    subtitle: "We'd love to hear your ideas for making MacHarmony better"
-                )
-
-                if submitted {
-                    AboutSubmittedState(
-                        icon: "star.fill",
-                        color: .orange,
-                        message: "Great idea! We'll consider it for a future update."
-                    )
-                } else {
-                    VStack(alignment: .leading, spacing: 14) {
-                        AboutFormField(label: "Feature *", placeholder: "What would you like to see?", text: $feature)
-                        AboutFormArea(label: "Why would this be useful?", placeholder: "Describe the problem it solves or the workflow it improves...", text: $reason)
-                    }
-
-                    if !errorMsg.isEmpty {
-                        Text(errorMsg)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-
-                    HStack {
-                        Spacer()
-                        Button(submitting ? "Submitting…" : "Submit Suggestion") {
-                            Task { await submit() }
-                        }
-                        .buttonStyle(ThemePrimaryButton(color: .orange))
-                        .disabled(!isValid || submitting)
-                    }
-                }
-            }
-            .padding(28)
-        }
-    }
-
-    private func submit() async {
-        submitting = true
-        errorMsg = ""
-        let message = "Feature Request: \(feature)\n\nWhy it would be useful:\n\(reason.isEmpty ? "Not provided" : reason)"
-        let err = await submitFeedback(
-            type: "feature",
-            subject: "[Feature] \(feature)",
-            message: message
-        )
-        submitting = false
-        if let err { errorMsg = err } else { submitted = true }
-    }
-}
-
 // MARK: - Contact Section
 
 private struct AboutSection_Contact: View {
@@ -372,26 +215,10 @@ private struct AboutSection_Contact: View {
                 VStack(spacing: 10) {
                     AboutContactRow(
                         icon: "envelope.fill", color: .blue,
-                        title: "General Support",
-                        detail: "Opens the support form"
+                        title: "Email Support",
+                        detail: "support@macharmony.com"
                     ) {
-                        withAnimation(.spring(response: 0.25)) { selectedSection = .contact }
-                    }
-
-                    AboutContactRow(
-                        icon: "ant.fill", color: .red,
-                        title: "Report a Bug",
-                        detail: "Opens the bug report form"
-                    ) {
-                        withAnimation(.spring(response: 0.25)) { selectedSection = .reportBug }
-                    }
-
-                    AboutContactRow(
-                        icon: "lightbulb.fill", color: .orange,
-                        title: "Feature Requests",
-                        detail: "Opens the suggestion form"
-                    ) {
-                        withAnimation(.spring(response: 0.25)) { selectedSection = .suggest }
+                        NSWorkspace.shared.open(URL(string: "mailto:support@macharmony.com")!)
                     }
                 }
 
@@ -520,49 +347,6 @@ private struct AboutInfoChip: View {
     }
 }
 
-private struct AboutFormField: View {
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label).font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.roundedBorder)
-        }
-    }
-}
-
-private struct AboutFormArea: View {
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label).font(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
-            TextEditor(text: $text)
-                .font(.body)
-                .frame(minHeight: 70, maxHeight: 90)
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .background(Theme.backgroundCard, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.borderSubtle, lineWidth: 1))
-                .overlay(alignment: .topLeading) {
-                    if text.isEmpty {
-                        Text(placeholder)
-                            .font(.body)
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 12)
-                            .allowsHitTesting(false)
-                    }
-                }
-        }
-    }
-}
-
 private struct AboutContactRow: View {
     let icon: String
     let color: Color
@@ -601,70 +385,5 @@ private struct AboutContactRow: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.1), value: isHovered)
-    }
-}
-
-private struct AboutSubmittedState: View {
-    let icon: String
-    let color: Color
-    let message: String
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 40, weight: .medium))
-                .foregroundStyle(color)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-    }
-}
-
-// MARK: - Feedback submission helper
-
-private func submitFeedback(type: String, subject: String, message: String) async -> String? {
-    let url = URL(string: "https://pjrmiyopkqzammvjcevo.supabase.co/functions/v1/submit-feedback")!
-    var req = URLRequest(url: url)
-    req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-    let macOS = ProcessInfo.processInfo.operatingSystemVersionString
-
-    let payload: [String: Any] = [
-        "type": type,
-        "subject": subject,
-        "message": message,
-        "source": "app",
-        "metadata": ["app_version": version, "macos": macOS],
-    ]
-
-    guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
-        print("[Feedback] ❌ Failed to encode payload")
-        return "Failed to encode request"
-    }
-    req.httpBody = body
-
-    print("[Feedback] → POST \(url.absoluteString) type=\(type)")
-
-    do {
-        let (data, response) = try await URLSession.shared.data(for: req)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        let responseBody = String(data: data, encoding: .utf8) ?? "<empty>"
-        print("[Feedback] ← \(status) \(responseBody.prefix(200))")
-
-        if status != 200 {
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let err = json["error"] as? String { return err }
-            return "Server error (\(status))"
-        }
-        return nil
-    } catch {
-        print("[Feedback] ❌ Network error: \(error)")
-        return "Network error. Please check your connection."
     }
 }

@@ -2,33 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-
-  <!-- macharmony:// URL scheme — required for the browser → app deep link -->
-  <key>CFBundleURLTypes</key>
-  <array>
-    <dict>
-      <key>CFBundleURLName</key>
-      <string>com.macharmony.app</string>
-      <key>CFBundleURLSchemes</key>
-      <array>
-        <string>macharmony</string>
-      </array>
-    </dict>
-  </array>
-
-  <!-- Sparkle auto-update configuration -->
-  <key>SUFeedURL</key>
-  <string>https://macharmony.com/appcast.xml</string>
-
-  <key>SUPublicEDKey</key>
-  <string>Xx6aCK4URJ5bOO4ZJW9TtLh99nGYYlEBV4zv6MpV3+U=</string>
-
-  <key>SUEnableAutomaticChecks</key>
-  <true/>
-
-  <!-- Check for updates every 24 hours -->
-  <key>SUScheduledCheckInterval</key>
-  <integer>86400</integer>
-
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -1,7 +1,6 @@
 //
 //  macHarmonyApp.swift
 //  MacHarmony
-//
 
 import SwiftUI
 import AppKit
@@ -10,9 +9,6 @@ import AppKit
 // Dynamically shows/hides the Dock icon based on whether the main window is visible.
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
-    var authManager: AuthManager?
-
-    // Set by MacHarmonyApp.body once the StateObject is ready
     var storageManager: StorageManager? {
         didSet {
             guard let sm = storageManager, statusItem == nil else { return }
@@ -73,22 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // Quit should fully terminate the app (including menu bar status item).
         .terminateNow
-    }
-
-    // MARK: - Deep Link
-
-    func application(_ application: NSApplication, open urls: [URL]) {
-        guard let url = urls.first,
-              url.scheme == "macharmony",
-              url.host == "auth"
-        else { return }
-
-        NSApp.activate(ignoringOtherApps: true)
-        Task { @MainActor in
-            await authManager?.handleDeepLink(url)
-        }
     }
 
     // MARK: - Window Delegate
@@ -132,7 +113,6 @@ struct MacHarmonyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     @StateObject private var storageManager = StorageManager()
-    @StateObject private var authManager    = AuthManager()
     @AppStorage("useDarkMode") private var useDarkMode = true
 
     init() {
@@ -143,23 +123,13 @@ struct MacHarmonyApp: App {
 
     var body: some Scene {
         WindowGroup(id: "main") {
-            AuthGatedView()
+            ContentView()
                 .environmentObject(storageManager)
-                .environmentObject(authManager)
                 .preferredColorScheme(useDarkMode ? .dark : .light)
                 .task {
-                    appDelegate.authManager = authManager
                     appDelegate.storageManager = storageManager
-
-                    await authManager.validateOnLaunch()
-
-                    switch authManager.state {
-                    case .authenticated, .offlineGrace, .trial:
-                        storageManager.scheduleAutoScanIfNeeded()
-                        storageManager.scheduleDerivedDataAutocleanIfNeeded()
-                    default:
-                        break
-                    }
+                    storageManager.scheduleAutoScanIfNeeded()
+                    storageManager.scheduleDerivedDataAutocleanIfNeeded()
                 }
         }
         .commands {

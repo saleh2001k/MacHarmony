@@ -1,6 +1,6 @@
 # MacHarmony
 
-This folder is the **macOS app** inside the [MacHarmonyStack](..) monorepo. Purchase, auth, Supabase Edge Functions, and the marketing site live at the repo root — see **`../ARCHITECTURE.md`** and **`../DEPLOYMENT.md`**.
+The **macOS app** for MacHarmony — an open-source storage scanner and cleaner.
 
 <p align="center">
   <img src="./assets/MacHarmony-App-Icon.png" alt="MacHarmony Hero" width="200" />

@@ -1,31 +1,24 @@
 #!/bin/bash
 # End-to-end production release script for MacHarmony.
 # Handles: version bump -> archive/export -> dmg build -> notarize/staple ->
-# Sparkle sign_update -> Supabase upload -> appcast update.
+# Sparkle sign_update -> appcast update.
+#
+# Hosting the DMG is left to you: the built DMG is placed in
+# macharmony-website/public/downloads/, and the appcast enclosure URL is
+# built from DOWNLOAD_BASE_URL. Point that at wherever you serve the DMG.
 #
 # Usage:
 #   APPLE_ID="you@icloud.com" \
 #   APPLE_TEAM_ID="TEAMID" \
 #   APPLE_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx" \
-#   SUPABASE_URL="https://<ref>.supabase.co" \
-#   SUPABASE_SERVICE_ROLE_KEY="..." \
+#   DOWNLOAD_BASE_URL="https://downloads.example.com/releases" \
 #   bash scripts/release-full.sh 1.0.3
 #
 # Optional env vars:
 #   APPLE_NOTARY_PROFILE=notarytool-profile
-#   SUPABASE_STORAGE_BUCKET=releases
 #   SIGN_UPDATE_BIN=/abs/path/to/sign_update
 #   RELEASE_NOTES_HTML="<li>...</li><li>...</li>"
 #   APP_PATH="/path/to/exported/MacHarmony.app"   # skips archive/export and uses this app
-
-
-# APPLE_ID="***REMOVED-EMAIL***" \
-# APPLE_TEAM_ID="6MN3Q4CFHD" \
-# APPLE_APP_PASSWORD="***REMOVED-APPLE-APP-PASSWORD***" \
-# SUPABASE_URL="https://pjrmiyopkqzammvjcevo.supabase.co" \
-# SUPABASE_SERVICE_ROLE_KEY="***REMOVED-SERVICE-ROLE-KEY***" \
-# bash scripts/release-full.sh 1.0.3
-
 
 
 set -euo pipefail
@@ -47,18 +40,16 @@ EXPORT_PATH="$HOME/Desktop/MacHarmony-${VERSION}-export"
 EXPORT_APP="$EXPORT_PATH/MacHarmony.app"
 EXPORT_OPTIONS="$PROJECT_ROOT/scripts/export-options-developer-id.plist"
 NOTARY_PROFILE="${APPLE_NOTARY_PROFILE:-notarytool-profile}"
-SUPABASE_STORAGE_BUCKET="${SUPABASE_STORAGE_BUCKET:-releases}"
 APP_PATH="${APP_PATH:-}"
 
 APPLE_ID="${APPLE_ID:-}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
 APPLE_APP_PASSWORD="${APPLE_APP_PASSWORD:-}"
-SUPABASE_URL="${SUPABASE_URL:-}"
-SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
+DOWNLOAD_BASE_URL="${DOWNLOAD_BASE_URL:-}"
 RELEASE_NOTES_HTML="${RELEASE_NOTES_HTML:-<li>Maintenance and stability improvements.</li>}"
 
-if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-  echo "❌ SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required."
+if [ -z "$DOWNLOAD_BASE_URL" ]; then
+  echo "❌ DOWNLOAD_BASE_URL is required (base URL where the DMG is hosted)."
   exit 1
 fi
 
@@ -141,14 +132,10 @@ if [ -z "$ED_SIG" ] || [ -z "$DMG_LEN" ]; then
   exit 1
 fi
 
-echo "☁️  Uploading DMG to Supabase..."
-SUPABASE_URL="$SUPABASE_URL" \
-SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
-SUPABASE_STORAGE_BUCKET="$SUPABASE_STORAGE_BUCKET" \
-SKIP_BUILD=1 \
-bash "$PROJECT_ROOT/scripts/release-supabase.sh" "$VERSION"
+echo "📦 DMG built at: $DMG_PATH"
+echo "   Upload it to your host so it is reachable under DOWNLOAD_BASE_URL."
 
-VERSIONED_URL="${SUPABASE_URL%/}/storage/v1/object/public/${SUPABASE_STORAGE_BUCKET}/MacHarmony-${VERSION}.dmg"
+VERSIONED_URL="${DOWNLOAD_BASE_URL%/}/MacHarmony-${VERSION}.dmg"
 PUB_DATE="$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")"
 ITEM_FILE="$(mktemp)"
 cat > "$ITEM_FILE" <<EOF
