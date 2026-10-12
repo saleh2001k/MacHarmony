@@ -10,6 +10,62 @@ A fast, modern macOS app for scanning, analyzing, and cleaning storage — built
 
 ---
 
+## Install
+
+Build an optimized **Release** copy from source and install it to `/Applications` like any other app — no Xcode window, no Debug build.
+
+**Prerequisites:** macOS 14 (Sonoma) or later, and [Xcode 26+](https://apps.apple.com/app/xcode/id497799835) (the full app — the Command Line Tools alone are not enough). Open Xcode once after installing it so it can finish setup.
+
+### One command
+
+```sh
+git clone https://github.com/saleh2001k/MacHarmony.git && cd MacHarmony && ./scripts/install.sh
+```
+
+Already cloned? From the repo root:
+
+```sh
+./scripts/install.sh
+```
+
+When it finishes, MacHarmony is in `/Applications` and shows up in Launchpad and Spotlight.
+
+### What the script does
+
+1. Builds the `MacHarmony` scheme in the **Release** configuration (universal: Apple silicon + Intel) into `build/install/`
+2. Signs it ad-hoc ("Sign to Run Locally") — no Apple Developer account needed
+3. Quits MacHarmony if it is running, then replaces `/Applications/MacHarmony.app` (asks for your password only if that folder isn't writable)
+4. Verifies the code signature and launches the app
+
+### Options
+
+| Option                             | Effect                                                            |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| `--no-launch`                      | Install without opening the app                                   |
+| `INSTALL_DIR="$HOME/Applications"` | Install somewhere other than `/Applications`                      |
+| `TEAM_ID=ABCDE12345`               | Sign with your Apple Developer team instead of ad-hoc (see below) |
+
+Example: `TEAM_ID=ABCDE12345 ./scripts/install.sh --no-launch`
+
+### Update / uninstall
+
+- **Update:** `git pull && ./scripts/install.sh`
+- **Uninstall:** `./scripts/uninstall.sh` — removes the app plus its caches, preferences and containers (uses `sudo`)
+
+### Permissions after reinstalling
+
+macOS ties privacy permissions such as **Full Disk Access** to the app's code signature. An ad-hoc build gets a new signature every time it is rebuilt, so after an update you may need to re-enable MacHarmony in **System Settings → Privacy & Security → Full Disk Access** (remove it with **–**, then add `/Applications/MacHarmony.app` again with **+**).
+
+To keep permissions across updates, sign with your own team: add your Apple ID in Xcode → Settings → Accounts, then pass your `TEAM_ID` (shown at [developer.apple.com/account](https://developer.apple.com/account) → Membership details).
+
+### Prefer Xcode?
+
+1. Open `MacHarmony.xcodeproj`, select the **MacHarmony** target → **Signing & Capabilities**, and pick your Team (or set Signing Certificate to **Sign to Run Locally**)
+2. **Product → Archive**
+3. In the Organizer: **Distribute App → Custom → Copy App**, then drag the exported `MacHarmony.app` into `/Applications`
+
+---
+
 ## Features
 
 - **Parallel scanning** — all categories scan concurrently using Swift structured concurrency; results stream in as each finishes
@@ -291,9 +347,10 @@ Failed deletions (permission errors, system-protected files) surface a named-ite
 
 ## Requirements
 
-- macOS 13.0 (Ventura)+
-- Xcode 15.0+
-- Swift 5.9+
+- macOS 14.0 (Sonoma)+
+- Xcode 26.0+ (Swift 6.2 toolchain; the project compiles in Swift 5 language mode)
+
+To build and install a Release copy, see [Install](#install).
 
 ---
 

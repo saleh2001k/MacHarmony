@@ -145,7 +145,7 @@ cat > "$ITEM_FILE" <<EOF
       <pubDate>${PUB_DATE}</pubDate>
       <sparkle:version>${BUILD_NUMBER}</sparkle:version>
       <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <description><![CDATA[
         <h3 style="font-family:-apple-system,sans-serif;font-size:14px;">What's New in ${VERSION}</h3>
         <ul style="font-family:-apple-system,sans-serif;font-size:13px;line-height:1.6;">
